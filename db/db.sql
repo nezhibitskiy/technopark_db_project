@@ -55,4 +55,3 @@ CREATE TABLE IF NOT EXISTS forum_users(
                                           CONSTRAINT forum_users_forum_fk FOREIGN KEY (forum) REFERENCES forum(slug),
                                           CONSTRAINT forum_users_users_fk FOREIGN KEY (author) REFERENCES users(nickname)
 );
-CREATE UNIQUE INDEX forum_users_index ON forum_users (author, forum);
