@@ -15,8 +15,8 @@ RUN apt-get -y update && apt-get install -y postgresql-12 && rm -rf /var/lib/apt
 USER postgres
 
 RUN /etc/init.d/postgresql start && \
-  psql --command "CREATE USER root WITH SUPERUSER PASSWORD 'rootpassword';" && \
-  createdb -O root technopark-dbms && \
+  psql --command "CREATE USER defaultuser WITH SUPERUSER PASSWORD 'password';" && \
+  createdb -O defaultuser sqlhw && \
   /etc/init.d/postgresql stop
 
 EXPOSE 5432
