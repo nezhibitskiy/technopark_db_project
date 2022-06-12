@@ -34,5 +34,5 @@ COPY ./.env ./.env
 COPY --from=builder /app/main .
 
 EXPOSE 5000
-ENV PGPASSWORD rootpassword
-CMD service postgresql start && psql -h localhost -d technopark-dbms -U root -p 5432 -a -q -f ./db.sql && ./main
+ENV PGPASSWORD password
+CMD service postgresql start && psql -h localhost -d technopark-dbms -U defaultuser -p 5432 -a -q -f ./db.sql && ./main
