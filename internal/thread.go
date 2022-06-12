@@ -11,7 +11,7 @@ import (
 )
 
 func (s *Service) FillThreadVotes(data *Thread) error {
-	return s.dbPool.QueryRow(context.Background(), "SELECT COALESCE(SUM(value), 0) FROM votes WHERE thread_id = $1;", &data.Id).Scan(&data.Votes)
+	return s.dbPool.QueryRow(context.Background(), "SELECT votes FROM thread WHERE id = $1", &data.Id).Scan(&data.Votes)
 }
 
 func (s *Service) GetThreadByIDorSlug(Slug string, Id uint) (*Thread, error) {

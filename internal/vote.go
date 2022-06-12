@@ -2,18 +2,25 @@ package internal
 
 import (
 	"context"
+	"errors"
 	"github.com/jackc/pgx/v4"
 	"github.com/labstack/echo/v4"
 	"net/http"
 	"strconv"
 )
 
-func (s *Service) FindUserVote(data Vote) (int, error) {
+var errVoteExists = errors.New("vote is exists")
+
+func (s *Service) FindUserVote(data Vote, threadId uint) (int, error) {
 	vote := 0
-	err := s.dbPool.QueryRow(context.Background(), "SELECT id FROM votes WHERE author = $1",
-		&data.Nickname).Scan(&vote)
+	value := 0
+	err := s.dbPool.QueryRow(context.Background(), "SELECT id, value FROM votes WHERE author = $1 AND thread_id = $2",
+		&data.Nickname, threadId).Scan(&vote, &value)
 	if err != nil {
 		return 0, err
+	}
+	if value == data.Voice {
+		return vote, errVoteExists
 	}
 	return vote, nil
 }
@@ -56,8 +63,15 @@ func (s *Service) ThreadVote() echo.HandlerFunc {
 
 		}
 
-		voteID, err := s.FindUserVote(data)
+		voteID, err := s.FindUserVote(data, thread.Id)
 		if err != nil && err != pgx.ErrNoRows {
+			if err == errVoteExists {
+				err = s.FillThreadVotes(thread)
+				if err != nil {
+					return ctx.JSON(http.StatusInternalServerError, err)
+				}
+				return ctx.JSON(http.StatusOK, &thread)
+			}
 			return ctx.JSON(http.StatusInternalServerError, err)
 		}
 		if err == pgx.ErrNoRows {
@@ -66,17 +80,26 @@ func (s *Service) ThreadVote() echo.HandlerFunc {
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)
 			}
+
+			err = s.dbPool.QueryRow(context.Background(), "UPDATE thread SET votes = votes + $1 WHERE id = $2 "+
+				"RETURNING votes", &data.Voice, &thread.Id).Scan(&thread.Votes)
+			if err != nil {
+				return ctx.JSON(http.StatusInternalServerError, err)
+			}
+
 		} else {
 			_, err = s.dbPool.Exec(context.Background(), "UPDATE votes SET value = $1 WHERE id = $2;",
 				&data.Voice, &voteID)
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)
 			}
-		}
 
-		err = s.FillThreadVotes(thread)
-		if err != nil {
-			return ctx.JSON(http.StatusInternalServerError, err)
+			err = s.dbPool.QueryRow(context.Background(), "UPDATE thread SET votes = votes + ($1 * 2) WHERE id = $2 "+
+				"RETURNING votes", &data.Voice, &thread.Id).Scan(&thread.Votes)
+			if err != nil {
+				return ctx.JSON(http.StatusInternalServerError, err)
+			}
+
 		}
 
 		return ctx.JSON(http.StatusOK, &thread)
