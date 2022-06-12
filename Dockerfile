@@ -1,38 +1,41 @@
-FROM golang:latest AS builder
-
-WORKDIR /app
-
-COPY . ./
-RUN GOAMD64=v3 go build -ldflags "-w -s" ./main.go
-
 FROM ubuntu:20.04
 
-RUN apt-get -y update && apt-get install -y tzdata
-ENV TZ=Russia/Moscow
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+EXPOSE 5432
+EXPOSE 5000
 
-RUN apt-get -y update && apt-get install -y postgresql-12 && rm -rf /var/lib/apt/lists/*
+ENV DEBIAN_FRONTEND 'noninteractive'
+ENV PGVER 12
+RUN apt -y update && apt install -y postgresql-$PGVER
+RUN apt install -y wget
+RUN apt install -y git
+
 USER postgres
 
-RUN /etc/init.d/postgresql start && \
-  psql --command "CREATE USER defaultuser WITH SUPERUSER PASSWORD 'password';" && \
-  createdb -O defaultuser sqlhw && \
-  /etc/init.d/postgresql stop
+ADD ./db/db.sql /opt/db.sql
+RUN /etc/init.d/postgresql start &&\
+	psql --command "CREATE USER subd WITH SUPERUSER PASSWORD 'subd';" &&\
+	createdb -O subd subd &&\
+    psql -f /opt/db.sql -d subd &&\
+    /etc/init.d/postgresql stop
+ENV POSTGRES_DSN=postgres://subd:subd@localhost/subd
 
-EXPOSE 5432
-VOLUME  ["/etc/postgresql", "/var/log/postgresql", "/var/lib/postgresql"]
+RUN echo "host all all 0.0.0.0/0 md5" >> /etc/postgresql/$PGVER/main/pg_hba.conf
+RUN echo "include_dir='conf.d'" >> /etc/postgresql/$PGVER/main/postgresql.conf
+ADD ./postgresql.conf /etc/postgresql/$PGVER/main/conf.d/basic.conf
+
+VOLUME ["/etc/postgresql", "/var/log/postgresql", "/var/lib/postgresql"]
+
 
 USER root
 
-WORKDIR /cmd
+RUN wget https://dl.google.com/go/go1.18.linux-amd64.tar.gz
+RUN tar -xvf go1.18.linux-amd64.tar.gz
+RUN mv go /usr/local
 
-RUN mkdir /cmd/configs
-VOLUME ["/cmd/configs"]
+ENV GOROOT /usr/local/go
+ENV GOPATH /opt/go
+ENV PATH $GOROOT/bin:$GOPATH/bin:/usr/local/go/bin:$PATH
 
-COPY ./db/db.sql ./db.sql
-COPY ./.env ./.env
-COPY --from=builder /app/main .
-
-EXPOSE 5000
-ENV PGPASSWORD password
-CMD service postgresql start && psql -h localhost -d sqlhw -U defaultuser -p 5432 -a -q -f ./db.sql && ./main
+ADD . /opt/app
+WORKDIR /opt/app
+CMD service postgresql start && go run .
