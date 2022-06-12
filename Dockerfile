@@ -35,4 +35,4 @@ COPY --from=builder /app/main .
 
 EXPOSE 5000
 ENV PGPASSWORD password
-CMD service postgresql start && psql -h localhost -d technopark-dbms -U defaultuser -p 5432 -a -q -f ./db.sql && ./main
+CMD service postgresql start && psql -h localhost -d sqlhw -U defaultuser -p 5432 -a -q -f ./db.sql && ./main
