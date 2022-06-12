@@ -99,9 +99,7 @@ func (s *Service) ThreadVote() echo.HandlerFunc {
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)
 			}
-
 		}
-
 		return ctx.JSON(http.StatusOK, &thread)
 	}
 }
