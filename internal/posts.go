@@ -154,11 +154,13 @@ func (s *Service) PostsCreate() echo.HandlerFunc {
 			return ctx.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
 		}
 
-		for i, _ := range postsArr {
-
+		if len(postsArr) > 0 {
 			if postsArr[0].Created.String() != "" {
 				created = postsArr[0].Created
 			}
+		}
+
+		for i, _ := range postsArr {
 
 			if postsArr[i].Thread == 0 {
 				postsArr[i].Thread = id
