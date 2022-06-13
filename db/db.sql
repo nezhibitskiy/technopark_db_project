@@ -27,6 +27,11 @@ CREATE TABLE IF NOT EXISTS thread(
 --     CONSTRAINT thread_user_fk FOREIGN KEY (author) REFERENCES users(nickname)
 );
 
+CREATE INDEX ON thread (slug);
+CREATE INDEX ON thread (created_at, forum);
+CREATE INDEX ON thread (forum, author);
+
+
 CREATE TABLE IF NOT EXISTS posts(
     id SERIAL PRIMARY KEY UNIQUE,
     parent int8 NOT NULL,
@@ -41,12 +46,18 @@ CREATE TABLE IF NOT EXISTS posts(
 --     CONSTRAINT posts_post_fk FOREIGN KEY (parent) REFERENCES posts(id)
 );
 
+CREATE INDEX ON posts (thread_id);
+CREATE INDEX ON posts (substring("path",1,7));
+
+
 CREATE TABLE IF NOT EXISTS votes(
     id SERIAL PRIMARY KEY UNIQUE,
     thread_id INT NOT NULL,
     author CITEXT NOT NULL,
     value INT NOT NULL
 );
+CREATE INDEX ON votes (thread_id, author);
+
 
 CREATE TABLE IF NOT EXISTS forum_users(
     id SERIAL8 PRIMARY KEY UNIQUE,
