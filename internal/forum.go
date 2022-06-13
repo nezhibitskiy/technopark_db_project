@@ -103,7 +103,7 @@ func (s *Service) ForumGetThreads() echo.HandlerFunc {
 			return ctx.JSON(http.StatusNotFound, ResponseError{Message: "Can't find forum by slug: " + forumSlug})
 		}
 
-		sql := "SELECT t.id, t.title, t.author, t.forum, t.message, t.slug, t.created_at FROM thread AS t WHERE t.forum = $1"
+		sql := "SELECT t.id, t.title, t.author, t.forum, t.message, t.slug, t.created_at, t.votes FROM thread AS t WHERE t.forum = $1"
 
 		if sinceStr != "" {
 			if descStr == "true" {
@@ -128,7 +128,7 @@ func (s *Service) ForumGetThreads() echo.HandlerFunc {
 		defer rows.Close()
 		var thread Thread
 		for rows.Next() {
-			err = rows.Scan(&thread.Id, &thread.Title, &thread.Author, &thread.Forum, &thread.Message, &thread.Slug, &thread.Created)
+			err = rows.Scan(&thread.Id, &thread.Title, &thread.Author, &thread.Forum, &thread.Message, &thread.Slug, &thread.Created, &thread.Votes)
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 			}

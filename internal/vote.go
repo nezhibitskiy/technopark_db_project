@@ -120,8 +120,8 @@ func (s *Service) ThreadVote() echo.HandlerFunc {
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)
 			}
-
-			err = tx.QueryRow(context.Background(), "UPDATE thread SET votes = votes + ($1 * 2) WHERE id = $2 "+
+			data.Voice = data.Voice * 2
+			err = tx.QueryRow(context.Background(), "UPDATE thread SET votes = votes + $1 WHERE id = $2 "+
 				"RETURNING votes", &data.Voice, &thread.Id).Scan(&thread.Votes)
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)

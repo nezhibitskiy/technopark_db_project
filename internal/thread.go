@@ -47,9 +47,9 @@ func (s *Service) FillThreadVotes(data *Thread) error {
 func (s *Service) GetThreadByIDorSlug(Slug string, Id uint) (*Thread, error) {
 	data := Thread{}
 	if Slug != "" {
-		err := s.db.QueryRow(context.Background(), "SELECT id, slug, title, author, forum, message, created_at "+
+		err := s.db.QueryRow(context.Background(), "SELECT id, slug, title, author, forum, message, created_at, votes "+
 			"FROM thread WHERE slug = $1;", &Slug).Scan(&data.Id, &data.Slug, &data.Title, &data.Author, &data.Forum,
-			&data.Message, &data.Created)
+			&data.Message, &data.Created, &data.Votes)
 		if err != nil {
 			return nil, err
 		}
@@ -58,16 +58,12 @@ func (s *Service) GetThreadByIDorSlug(Slug string, Id uint) (*Thread, error) {
 		if err != nil {
 			return nil, err
 		}
-
 		return &data, nil
 	} else if Id != 0 {
-		err := s.db.QueryRow(context.Background(), "SELECT id, slug, title, author, forum, message, created_at "+
+		err := s.db.QueryRow(context.Background(), "SELECT id, slug, title, author, forum, message, created_at, votes "+
 			"FROM thread WHERE id = $1;", &Id).Scan(&data.Id, &data.Slug, &data.Title, &data.Author, &data.Forum,
-			&data.Message, &data.Created)
+			&data.Message, &data.Created, &data.Votes)
 		if err != nil {
-			return nil, err
-		}
-		if s.FillThreadVotes(&data) != nil {
 			return nil, err
 		}
 		return &data, nil
@@ -150,49 +146,32 @@ func (s *Service) ThreadCreate() echo.HandlerFunc {
 func (s *Service) ThreadGetOne() echo.HandlerFunc {
 	return func(ctx echo.Context) error {
 
-		data := Thread{}
-		err := ctx.Bind(&data)
-		if err != nil {
-			return ctx.JSON(http.StatusInternalServerError, err)
-		}
+		var data *Thread
+		//err := ctx.Bind(&data)
+		//if err != nil {
+		//	return ctx.JSON(http.StatusInternalServerError, err)
+		//}
 
 		queryParam := ctx.Param("slug_or_id")
 
-		conn, err := s.db.Acquire(context.Background())
-		defer conn.Release()
-
-		tx, err := conn.Begin(context.Background())
-		if err != nil {
-			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
-		}
-
 		id, err := strconv.Atoi(queryParam)
 		if err != nil {
-			err = tx.QueryRow(context.Background(), "SELECT id, slug, title, author, forum, message, created_at "+
-				"FROM thread WHERE slug = $1;", &queryParam).Scan(&data.Id, &data.Slug, &data.Title, &data.Author, &data.Forum,
-				&data.Message, &data.Created)
+			data, err = s.GetThreadByIDorSlug(queryParam, 0)
 			if err != nil {
 				return ctx.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
 			}
 		} else {
-			data.Id = uint(id)
-			err = tx.QueryRow(context.Background(), "SELECT title, author, forum, message, slug, created_at "+
-				"FROM thread WHERE id = $1;", data.Id).Scan(&data.Title, &data.Author, &data.Forum,
-				&data.Message, &data.Slug, &data.Created)
+			data, err = s.GetThreadByIDorSlug("", uint(id))
 			if err != nil {
 				return ctx.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
 			}
 		}
 
-		err = tx.QueryRow(context.Background(), "SELECT count(*) FROM votes WHERE thread_id = $1;", &data.Id).Scan(&data.Votes)
-		if err != nil {
-			return ctx.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
-		}
+		//err := s.FillThreadVotes(&data)
+		//if err != nil {
+		//	return ctx.JSON(http.StatusInternalServerError, err)
+		//}
 
-		err = tx.Commit(context.Background())
-		if err != nil {
-			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
-		}
 		return ctx.JSON(http.StatusOK, &data)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -156,7 +157,11 @@ func (s *Service) PostsCreate() echo.HandlerFunc {
 		}
 
 		for i, _ := range postsArr {
-			thisTime := postsArr[i].Created.UTC()
+			var thisTime time.Time
+			if !postsArr[0].Created.IsZero() {
+				thisTime = postsArr[0].Created.UTC()
+			}
+
 			if postsArr[i].Thread == 0 {
 				postsArr[i].Thread = id
 			}
