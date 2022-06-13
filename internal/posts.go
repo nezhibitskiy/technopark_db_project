@@ -57,10 +57,7 @@ func (s *Service) PostGetOne() echo.HandlerFunc {
 			case "user":
 				user, err := s.userCache.GetUserByNickname(data.Author)
 				if err != nil {
-					if err == pgx.ErrNoRows {
-						return ctx.JSON(http.StatusNotFound, ResponseError{Message: "Can't find user by nickname: " + data.Author})
-					}
-					return ctx.JSON(http.StatusInternalServerError, err)
+					return ctx.JSON(http.StatusNotFound, ResponseError{Message: "Can't find user by nickname: " + data.Author})
 				}
 				postFull.Author = user
 

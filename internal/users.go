@@ -104,10 +104,7 @@ func (s *Service) UserGetOne() echo.HandlerFunc {
 		nickname := ctx.Param("nickname")
 		userData, err := s.userCache.GetUserByNickname(nickname)
 		if err != nil {
-			if err == pgx.ErrNoRows {
-				return ctx.JSON(http.StatusNotFound, ResponseError{Message: "Can't find user by nickname: " + userData.Nickname})
-			}
-			return ctx.JSON(http.StatusInternalServerError, err)
+			return ctx.JSON(http.StatusNotFound, ResponseError{Message: "Can't find user by nickname: " + nickname})
 		}
 		return ctx.JSON(http.StatusOK, &userData)
 	}
