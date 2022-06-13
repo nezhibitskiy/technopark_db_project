@@ -34,10 +34,7 @@ func (s *Service) ThreadVote() echo.HandlerFunc {
 		if err != nil {
 			return ctx.JSON(http.StatusBadRequest, err)
 		}
-		user, err := s.searchUsersByNickname(data.Nickname)
-		if err != nil && err != pgx.ErrNoRows {
-			return ctx.JSON(http.StatusInternalServerError, err)
-		}
+		user, err := s.userCache.GetUserByNickname(data.Nickname)
 		if user == nil {
 			return ctx.JSON(http.StatusNotFound, ResponseError{Message: "Can't find user with nickname: " + data.Nickname})
 		}
@@ -66,10 +63,6 @@ func (s *Service) ThreadVote() echo.HandlerFunc {
 		voteID, err := s.FindUserVote(data, thread.Id)
 		if err != nil && err != pgx.ErrNoRows {
 			if err == errVoteExists {
-				err = s.FillThreadVotes(thread)
-				if err != nil {
-					return ctx.JSON(http.StatusInternalServerError, err)
-				}
 				return ctx.JSON(http.StatusOK, &thread)
 			}
 			return ctx.JSON(http.StatusInternalServerError, err)

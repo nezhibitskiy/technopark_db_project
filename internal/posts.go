@@ -55,14 +55,14 @@ func (s *Service) PostGetOne() echo.HandlerFunc {
 		for _, relParam := range relatedParams {
 			switch relParam {
 			case "user":
-				user, err := s.getUserByNickname(data.Author)
+				user, err := s.userCache.GetUserByNickname(data.Author)
 				if err != nil {
 					if err == pgx.ErrNoRows {
 						return ctx.JSON(http.StatusNotFound, ResponseError{Message: "Can't find user by nickname: " + data.Author})
 					}
 					return ctx.JSON(http.StatusInternalServerError, err)
 				}
-				postFull.Author = &user
+				postFull.Author = user
 
 			case "forum":
 				forum := Forum{}

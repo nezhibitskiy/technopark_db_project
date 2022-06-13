@@ -53,11 +53,6 @@ func (s *Service) GetThreadByIDorSlug(Slug string, Id uint) (*Thread, error) {
 		if err != nil {
 			return nil, err
 		}
-
-		err = s.FillThreadVotes(&data)
-		if err != nil {
-			return nil, err
-		}
 		return &data, nil
 	} else if Id != 0 {
 		err := s.db.QueryRow(context.Background(), "SELECT id, slug, title, author, forum, message, created_at, votes "+

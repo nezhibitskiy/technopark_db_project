@@ -11,14 +11,14 @@ import (
 type Service struct {
 	db              *pgxpool.Pool
 	postIDGenerator *generator.Generator
-	//userCache       *UserCache
+	userCache       *UserCache
 }
 
 func RegisterService(s *echo.Echo, dbPool *pgxpool.Pool) *Service {
 	service := Service{db: dbPool}
 	service.registerRoutes(s)
 	postIDGen := generator.NewGenerator()
-	//service.userCache = NewUserCache()
+	service.userCache = NewUserCache()
 	service.postIDGenerator = &postIDGen
 	return &service
 }

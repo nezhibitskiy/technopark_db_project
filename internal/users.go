@@ -94,6 +94,7 @@ func (s *Service) UserCreate() echo.HandlerFunc {
 			return ctx.JSON(http.StatusInternalServerError, err)
 		}
 		userData.Nickname = nickname
+		s.userCache.Add(&userData)
 		return ctx.JSON(http.StatusCreated, &userData)
 	}
 }
@@ -101,7 +102,7 @@ func (s *Service) UserCreate() echo.HandlerFunc {
 func (s *Service) UserGetOne() echo.HandlerFunc {
 	return func(ctx echo.Context) error {
 		nickname := ctx.Param("nickname")
-		userData, err := s.getUserByNickname(nickname)
+		userData, err := s.userCache.GetUserByNickname(nickname)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				return ctx.JSON(http.StatusNotFound, ResponseError{Message: "Can't find user by nickname: " + userData.Nickname})
@@ -133,7 +134,7 @@ func (s *Service) UpdateUser() echo.HandlerFunc {
 			}
 		}
 
-		user, err := s.searchUsersByNickname(nickname)
+		user, err := s.userCache.GetUserByNickname(nickname)
 
 		if user == nil {
 			return ctx.JSON(http.StatusNotFound, ResponseError{Message: "Can't find user by nickname: " + nickname})
@@ -162,13 +163,15 @@ func (s *Service) UpdateUser() echo.HandlerFunc {
 		}
 
 		if userData.About == "" || userData.Fullname == "" || userData.Email == "" {
-			userData, err = s.getUserByNickname(nickname)
+			userDataOld, err := s.getUserByNickname(nickname)
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)
 			}
+			return ctx.JSON(http.StatusOK, userDataOld)
 		}
 
 		userData.Nickname = nickname
+		s.userCache.Add(&userData)
 		return ctx.JSON(http.StatusOK, &userData)
 	}
 }
