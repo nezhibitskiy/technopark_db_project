@@ -9,12 +9,12 @@ import (
 )
 
 type Service struct {
-	dbPool          *pgxpool.Pool
+	db              *pgxpool.Pool
 	postIDGenerator *generator.Generator
 }
 
 func RegisterService(s *echo.Echo, dbPool *pgxpool.Pool) *Service {
-	service := Service{dbPool: dbPool}
+	service := Service{db: dbPool}
 	service.registerRoutes(s)
 	postIDGen := generator.NewGenerator()
 	service.postIDGenerator = &postIDGen
@@ -44,32 +44,32 @@ func (s *Service) registerRoutes(router *echo.Echo) {
 
 func (s *Service) Clear() echo.HandlerFunc {
 	return func(ctx echo.Context) error {
-		_, err := s.dbPool.Exec(context.Background(), "DELETE FROM votes;")
+		_, err := s.db.Exec(context.Background(), "DELETE FROM votes;")
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 		}
 
-		_, err = s.dbPool.Exec(context.Background(), "DELETE FROM posts;")
+		_, err = s.db.Exec(context.Background(), "DELETE FROM posts;")
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 		}
 
-		_, err = s.dbPool.Exec(context.Background(), "DELETE FROM thread;")
+		_, err = s.db.Exec(context.Background(), "DELETE FROM thread;")
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 		}
 
-		_, err = s.dbPool.Exec(context.Background(), "DELETE FROM forum_users;")
+		_, err = s.db.Exec(context.Background(), "DELETE FROM forum_users;")
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 		}
 
-		_, err = s.dbPool.Exec(context.Background(), "DELETE FROM forum;")
+		_, err = s.db.Exec(context.Background(), "DELETE FROM forum;")
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 		}
 
-		_, err = s.dbPool.Exec(context.Background(), "DELETE FROM users;")
+		_, err = s.db.Exec(context.Background(), "DELETE FROM users;")
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 		}
@@ -80,7 +80,7 @@ func (s *Service) Clear() echo.HandlerFunc {
 
 func (s *Service) GetStatus() echo.HandlerFunc {
 	return func(ctx echo.Context) error {
-		conn, err := s.dbPool.Acquire(context.Background())
+		conn, err := s.db.Acquire(context.Background())
 		defer conn.Release()
 
 		var data Status
@@ -89,6 +89,7 @@ func (s *Service) GetStatus() echo.HandlerFunc {
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 		}
+		defer tx.Rollback(context.Background())
 
 		err = tx.QueryRow(context.Background(), "SELECT count(*) FROM users;").Scan(&data.User)
 		if err != nil {

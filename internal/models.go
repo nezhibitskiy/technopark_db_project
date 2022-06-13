@@ -25,7 +25,7 @@ type Forum struct {
 type Post struct {
 
 	// Идентификатор данного сообщения.
-	Id uint `json:"id,omitempty"`
+	Id uint32 `json:"id,omitempty"`
 
 	// Идентификатор родительского сообщения (0 - корневое сообщение обсуждения).
 	Parent uint `json:"parent,omitempty"`

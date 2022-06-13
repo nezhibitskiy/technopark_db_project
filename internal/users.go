@@ -11,7 +11,7 @@ import (
 func (s *Service) searchUsersByNickname(nickname string) (*User, error) {
 	user := User{}
 
-	err := s.dbPool.QueryRow(context.Background(), "SELECT nickname, fullname, about, email FROM users "+
+	err := s.db.QueryRow(context.Background(), "SELECT nickname, fullname, about, email FROM users "+
 		"WHERE nickname = $1", &nickname).Scan(&user.Nickname, &user.Fullname, &user.About,
 		&user.Email)
 	if err != nil {
@@ -24,8 +24,12 @@ func (s *Service) searchUsersByNickname(nickname string) (*User, error) {
 func (s *Service) searchUsersByEmail(email string) ([]User, error) {
 	users := make([]User, 0, 2)
 
-	rows, err := s.dbPool.Query(context.Background(), "SELECT nickname, fullname, about, email FROM users "+
+	rows, err := s.db.Query(context.Background(), "SELECT nickname, fullname, about, email FROM users "+
 		"WHERE email = $1", &email)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var nextUser User
@@ -43,9 +47,12 @@ func (s *Service) searchUsersByEmail(email string) ([]User, error) {
 func (s *Service) searchUsersByEmailOrNickname(nickname, email string) ([]User, error) {
 	users := make([]User, 0, 2)
 
-	rows, err := s.dbPool.Query(context.Background(), "SELECT nickname, fullname, about, email FROM users "+
+	rows, err := s.db.Query(context.Background(), "SELECT nickname, fullname, about, email FROM users "+
 		"WHERE nickname = $1 OR email = $2", &nickname, &email)
-
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 	for rows.Next() {
 		var nextUser User
 		err = rows.Scan(&nextUser.Nickname, &nextUser.Fullname, &nextUser.About,
@@ -61,7 +68,7 @@ func (s *Service) searchUsersByEmailOrNickname(nickname, email string) ([]User, 
 
 func (s *Service) getUserByNickname(nickname string) (User, error) {
 	userData := User{}
-	err := s.dbPool.QueryRow(context.Background(), "SELECT nickname, fullname, about, email FROM users "+
+	err := s.db.QueryRow(context.Background(), "SELECT nickname, fullname, about, email FROM users "+
 		"WHERE nickname = $1", &nickname).Scan(&userData.Nickname, &userData.Fullname, &userData.About,
 		&userData.Email)
 	return userData, err
@@ -81,7 +88,7 @@ func (s *Service) UserCreate() echo.HandlerFunc {
 			return ctx.JSON(http.StatusConflict, oldUsers)
 		}
 
-		_, err = s.dbPool.Exec(context.Background(), "INSERT INTO users(about, email, fullname, nickname) "+
+		_, err = s.db.Exec(context.Background(), "INSERT INTO users(about, email, fullname, nickname) "+
 			"VALUES($1, $2, $3, $4);", &userData.About, &userData.Email,
 			&userData.Fullname, &nickname)
 		if err != nil {
@@ -135,21 +142,21 @@ func (s *Service) UpdateUser() echo.HandlerFunc {
 		}
 
 		if userData.Fullname != "" {
-			_, err = s.dbPool.Exec(context.Background(), "UPDATE users SET fullname = $1 "+
+			_, err = s.db.Exec(context.Background(), "UPDATE users SET fullname = $1 "+
 				"WHERE nickname = $2", &userData.Fullname, &nickname)
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)
 			}
 		}
 		if userData.About != "" {
-			_, err = s.dbPool.Exec(context.Background(), "UPDATE users SET about = $1 "+
+			_, err = s.db.Exec(context.Background(), "UPDATE users SET about = $1 "+
 				"WHERE nickname = $2", &userData.About, &nickname)
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)
 			}
 		}
 		if userData.Email != "" {
-			_, err = s.dbPool.Exec(context.Background(), "UPDATE users SET email = $1 "+
+			_, err = s.db.Exec(context.Background(), "UPDATE users SET email = $1 "+
 				"WHERE nickname = $2", &userData.Email, &nickname)
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)

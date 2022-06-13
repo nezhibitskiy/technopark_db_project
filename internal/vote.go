@@ -14,7 +14,7 @@ var errVoteExists = errors.New("vote is exists")
 func (s *Service) FindUserVote(data Vote, threadId uint) (int, error) {
 	vote := 0
 	value := 0
-	err := s.dbPool.QueryRow(context.Background(), "SELECT id, value FROM votes WHERE author = $1 AND thread_id = $2",
+	err := s.db.QueryRow(context.Background(), "SELECT id, value FROM votes WHERE author = $1 AND thread_id = $2",
 		&data.Nickname, threadId).Scan(&vote, &value)
 	if err != nil {
 		return 0, err
@@ -75,26 +75,26 @@ func (s *Service) ThreadVote() echo.HandlerFunc {
 			return ctx.JSON(http.StatusInternalServerError, err)
 		}
 		if err == pgx.ErrNoRows {
-			_, err = s.dbPool.Exec(context.Background(), "INSERT INTO votes(thread_id, author, value) VALUES($1, $2, $3);",
+			_, err = s.db.Exec(context.Background(), "INSERT INTO votes(thread_id, author, value) VALUES($1, $2, $3);",
 				&thread.Id, &data.Nickname, &data.Voice)
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)
 			}
 
-			err = s.dbPool.QueryRow(context.Background(), "UPDATE thread SET votes = votes + $1 WHERE id = $2 "+
+			err = s.db.QueryRow(context.Background(), "UPDATE thread SET votes = votes + $1 WHERE id = $2 "+
 				"RETURNING votes", &data.Voice, &thread.Id).Scan(&thread.Votes)
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)
 			}
 
 		} else {
-			_, err = s.dbPool.Exec(context.Background(), "UPDATE votes SET value = $1 WHERE id = $2;",
+			_, err = s.db.Exec(context.Background(), "UPDATE votes SET value = $1 WHERE id = $2;",
 				&data.Voice, &voteID)
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)
 			}
 
-			err = s.dbPool.QueryRow(context.Background(), "UPDATE thread SET votes = votes + ($1 * 2) WHERE id = $2 "+
+			err = s.db.QueryRow(context.Background(), "UPDATE thread SET votes = votes + ($1 * 2) WHERE id = $2 "+
 				"RETURNING votes", &data.Voice, &thread.Id).Scan(&thread.Votes)
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)

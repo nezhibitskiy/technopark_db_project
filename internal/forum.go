@@ -9,7 +9,7 @@ import (
 
 func (s *Service) getForumBySlug(slug string) (*Forum, error) {
 	data := Forum{}
-	err := s.dbPool.QueryRow(context.Background(), "SELECT title, author, slug FROM forum WHERE slug=$1;", &slug).Scan(&data.Title, &data.User, &data.Slug)
+	err := s.db.QueryRow(context.Background(), "SELECT title, author, slug FROM forum WHERE slug=$1;", &slug).Scan(&data.Title, &data.User, &data.Slug)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +38,7 @@ func (s *Service) ForumCreate() echo.HandlerFunc {
 		if oldForum != nil {
 			return ctx.JSON(http.StatusConflict, oldForum)
 		}
-		_, err = s.dbPool.Exec(context.Background(), "INSERT INTO forum(title, slug, author) VALUES($1, $2, $3);",
+		_, err = s.db.Exec(context.Background(), "INSERT INTO forum(title, slug, author) VALUES($1, $2, $3);",
 			&data.Title, &data.Slug, &data.User)
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, err)
@@ -52,13 +52,14 @@ func (s *Service) ForumGetOne() echo.HandlerFunc {
 		forumSlug := ctx.Param("slug")
 		data := Forum{}
 
-		conn, err := s.dbPool.Acquire(context.Background())
+		conn, err := s.db.Acquire(context.Background())
 		defer conn.Release()
 
 		tx, err := conn.Begin(context.Background())
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 		}
+		defer tx.Rollback(context.Background())
 
 		err = tx.QueryRow(context.Background(), "SELECT title, author, slug FROM forum WHERE slug=$1;", &forumSlug).Scan(&data.Title, &data.User, &data.Slug)
 		if err != nil {
@@ -70,7 +71,7 @@ func (s *Service) ForumGetOne() echo.HandlerFunc {
 			return ctx.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
 		}
 
-		err = tx.QueryRow(context.Background(), "SELECT count(*) FROM posts RIGHT JOIN thread t on t.id = posts.thread_id WHERE t.forum=$1;", &forumSlug).Scan(&data.Posts)
+		err = tx.QueryRow(context.Background(), "SELECT count(*) FROM posts JOIN thread t on t.id = posts.thread_id WHERE t.forum=$1;", &forumSlug).Scan(&data.Posts)
 		if err != nil {
 			return ctx.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
 		}
@@ -94,7 +95,7 @@ func (s *Service) ForumGetThreads() echo.HandlerFunc {
 		sinceStr := ctx.QueryParam("since")
 
 		forumTitle := ""
-		err := s.dbPool.QueryRow(context.Background(), "SELECT title FROM forum WHERE slug = $1", &forumSlug).Scan(&forumTitle)
+		err := s.db.QueryRow(context.Background(), "SELECT title FROM forum WHERE slug = $1", &forumSlug).Scan(&forumTitle)
 		if err != nil && err != pgx.ErrNoRows {
 			return ctx.NoContent(http.StatusInternalServerError)
 		}
@@ -120,11 +121,11 @@ func (s *Service) ForumGetThreads() echo.HandlerFunc {
 		}
 		sql = sql + ";"
 
-		rows, err := s.dbPool.Query(context.Background(), sql, &forumSlug)
+		rows, err := s.db.Query(context.Background(), sql, &forumSlug)
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 		}
-
+		defer rows.Close()
 		var thread Thread
 		for rows.Next() {
 			err = rows.Scan(&thread.Id, &thread.Title, &thread.Author, &thread.Forum, &thread.Message, &thread.Slug, &thread.Created)
@@ -147,7 +148,7 @@ func (s *Service) ForumGetUsers() echo.HandlerFunc {
 		users := make([]User, 0, 8)
 
 		sql := "SELECT slug FROM forum WHERE slug = $1"
-		err := s.dbPool.QueryRow(context.Background(), sql, forumSlug).Scan(&forumSlug)
+		err := s.db.QueryRow(context.Background(), sql, forumSlug).Scan(&forumSlug)
 		if err != nil {
 			return ctx.JSON(http.StatusNotFound, ResponseError{Message: "Can't find forum by slug: " + forumSlug})
 		}
@@ -173,11 +174,11 @@ func (s *Service) ForumGetUsers() echo.HandlerFunc {
 			sql = sql + " LIMIT " + limitStr
 		}
 
-		rows, err := s.dbPool.Query(context.Background(), sql, &forumSlug)
+		rows, err := s.db.Query(context.Background(), sql, &forumSlug)
 		if err != nil {
 			return ctx.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
 		}
-
+		defer rows.Close()
 		var user User
 		for rows.Next() {
 			err = rows.Scan(&user.Nickname, &user.Fullname, &user.About, &user.Email)

@@ -21,6 +21,7 @@ func ConnectDB() (*pgxpool.Pool, error) {
 		os.Getenv("DBPASSWORD"), os.Getenv("DBNAME"))
 
 	dbPool, err := pgxpool.Connect(context.Background(), psqlInfo)
+
 	if err != nil {
 		return nil, err
 	}

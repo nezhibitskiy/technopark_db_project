@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/jackc/pgx/v4"
 	"github.com/labstack/echo/v4"
@@ -10,14 +11,43 @@ import (
 	"strings"
 )
 
+const ErrNoThreadByID = "Can't find post thread by id: "
+const ErrNoThreadBySlug = "Can't find post thread by slug: "
+
+func (s *Service) GetForumAndIDFromThread(slugOrId string) (string, int, error) {
+	forum := ""
+	id := 0
+	id, err := strconv.Atoi(slugOrId)
+	if err != nil {
+		err = s.db.QueryRow(context.Background(), "SELECT forum, id FROM thread WHERE slug = $1",
+			&slugOrId).Scan(&forum, &id)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				return "", 0, errors.New(ErrNoThreadBySlug + slugOrId)
+			}
+			return "", 0, err
+		}
+	} else {
+		err = s.db.QueryRow(context.Background(), "SELECT forum, id FROM thread WHERE id = $1",
+			&id).Scan(&forum, &id)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				return "", 0, errors.New(ErrNoThreadByID + slugOrId)
+			}
+			return "", 0, err
+		}
+	}
+	return forum, id, nil
+}
+
 func (s *Service) FillThreadVotes(data *Thread) error {
-	return s.dbPool.QueryRow(context.Background(), "SELECT votes FROM thread WHERE id = $1", &data.Id).Scan(&data.Votes)
+	return s.db.QueryRow(context.Background(), "SELECT votes FROM thread WHERE id = $1", &data.Id).Scan(&data.Votes)
 }
 
 func (s *Service) GetThreadByIDorSlug(Slug string, Id uint) (*Thread, error) {
 	data := Thread{}
 	if Slug != "" {
-		err := s.dbPool.QueryRow(context.Background(), "SELECT id, slug, title, author, forum, message, created_at "+
+		err := s.db.QueryRow(context.Background(), "SELECT id, slug, title, author, forum, message, created_at "+
 			"FROM thread WHERE slug = $1;", &Slug).Scan(&data.Id, &data.Slug, &data.Title, &data.Author, &data.Forum,
 			&data.Message, &data.Created)
 		if err != nil {
@@ -31,7 +61,7 @@ func (s *Service) GetThreadByIDorSlug(Slug string, Id uint) (*Thread, error) {
 
 		return &data, nil
 	} else if Id != 0 {
-		err := s.dbPool.QueryRow(context.Background(), "SELECT id, slug, title, author, forum, message, created_at "+
+		err := s.db.QueryRow(context.Background(), "SELECT id, slug, title, author, forum, message, created_at "+
 			"FROM thread WHERE id = $1;", &Id).Scan(&data.Id, &data.Slug, &data.Title, &data.Author, &data.Forum,
 			&data.Message, &data.Created)
 		if err != nil {
@@ -47,7 +77,7 @@ func (s *Service) GetThreadByIDorSlug(Slug string, Id uint) (*Thread, error) {
 
 func (s *Service) IsAuthorExists(nickname string) (bool, error) {
 	fullname := ""
-	err := s.dbPool.QueryRow(context.Background(), "SELECT fullname FROM users WHERE nickname = $1;", &nickname).Scan(&fullname)
+	err := s.db.QueryRow(context.Background(), "SELECT fullname FROM users WHERE nickname = $1;", &nickname).Scan(&fullname)
 	if err != nil {
 		return false, err
 	}
@@ -80,38 +110,35 @@ func (s *Service) ThreadCreate() echo.HandlerFunc {
 		}
 
 		if oldThread == nil {
-			conn, err := s.dbPool.Acquire(context.Background())
+			conn, err := s.db.Acquire(context.Background())
 			defer conn.Release()
 
 			tx, err := conn.Begin(context.Background())
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 			}
+			defer tx.Rollback(context.Background())
 
 			thisTime := data.Created.UTC()
 
 			err = tx.QueryRow(context.Background(), "SELECT slug FROM forum WHERE slug = $1", slug).Scan(&data.Forum)
 			if err != nil {
-				_ = tx.Rollback(context.Background())
 				return ctx.JSON(http.StatusNotFound, ResponseError{Message: "Can't find thread forum by slug: " + slug})
 			}
 
 			err = tx.QueryRow(context.Background(), "INSERT INTO thread(slug, title, message, author, forum, created_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
 				&data.Slug, &data.Title, &data.Message, &data.Author, &data.Forum, &thisTime).Scan(&data.Id)
 			if err != nil {
-				_ = tx.Rollback(context.Background())
 				return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 			}
 
 			_, err = tx.Exec(context.Background(), "INSERT INTO forum_users(author, forum) VALUES ($1, $2);", &data.Author, &data.Forum)
 			if err != nil {
-				_ = tx.Rollback(context.Background())
 				return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 			}
 
 			err = tx.Commit(context.Background())
 			if err != nil {
-				_ = tx.Rollback(context.Background())
 				return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 			}
 
@@ -131,7 +158,7 @@ func (s *Service) ThreadGetOne() echo.HandlerFunc {
 
 		queryParam := ctx.Param("slug_or_id")
 
-		conn, err := s.dbPool.Acquire(context.Background())
+		conn, err := s.db.Acquire(context.Background())
 		defer conn.Release()
 
 		tx, err := conn.Begin(context.Background())
@@ -194,7 +221,7 @@ func (s *Service) ThreadGetPosts() echo.HandlerFunc {
 
 		id, err := strconv.Atoi(slugOrId)
 		if err != nil {
-			err = s.dbPool.QueryRow(context.Background(), "SELECT id FROM thread WHERE slug = $1",
+			err = s.db.QueryRow(context.Background(), "SELECT id FROM thread WHERE slug = $1",
 				&slugOrId).Scan(&id)
 			if err != nil && err == pgx.ErrNoRows {
 				return ctx.JSON(http.StatusNotFound, ResponseError{Message: "Can't find post thread by slug: " + slugOrId})
@@ -203,7 +230,7 @@ func (s *Service) ThreadGetPosts() echo.HandlerFunc {
 				return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 			}
 		} else {
-			err = s.dbPool.QueryRow(context.Background(), "SELECT id FROM thread WHERE id = $1",
+			err = s.db.QueryRow(context.Background(), "SELECT id FROM thread WHERE id = $1",
 				&slugOrId).Scan(&id)
 			if err != nil && err == pgx.ErrNoRows {
 				return ctx.JSON(http.StatusNotFound, ResponseError{Message: "Can't find post thread by id: " + slugOrId})
@@ -254,7 +281,7 @@ func (s *Service) UpdateThread() echo.HandlerFunc {
 		queryParam := ctx.Param("slug_or_id")
 		id, err := strconv.Atoi(queryParam)
 		if err != nil {
-			err = s.dbPool.QueryRow(context.Background(), "SELECT slug FROM thread WHERE slug = $1;",
+			err = s.db.QueryRow(context.Background(), "SELECT slug FROM thread WHERE slug = $1;",
 				&queryParam).Scan(&data.Slug)
 			if err != nil {
 				if err == pgx.ErrNoRows {
@@ -263,31 +290,31 @@ func (s *Service) UpdateThread() echo.HandlerFunc {
 			}
 			if data.Message != "" && data.Title != "" {
 				data.Slug = queryParam
-				_, err = s.dbPool.Exec(context.Background(), "UPDATE thread SET title=$1, message=$2 WHERE slug = $3;", &data.Title, &data.Message, &queryParam)
+				_, err = s.db.Exec(context.Background(), "UPDATE thread SET title=$1, message=$2 WHERE slug = $3;", &data.Title, &data.Message, &queryParam)
 				if err != nil {
 					return ctx.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
 				}
 			} else if data.Message != "" {
 				data.Slug = queryParam
-				_, err = s.dbPool.Exec(context.Background(), "UPDATE thread SET message=$1 WHERE slug = $2;", &data.Message, &queryParam)
+				_, err = s.db.Exec(context.Background(), "UPDATE thread SET message=$1 WHERE slug = $2;", &data.Message, &queryParam)
 				if err != nil {
 					return ctx.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
 				}
 			} else if data.Title != "" {
 				data.Slug = queryParam
-				_, err = s.dbPool.Exec(context.Background(), "UPDATE thread SET title=$1 WHERE slug = $2;", &data.Title, &queryParam)
+				_, err = s.db.Exec(context.Background(), "UPDATE thread SET title=$1 WHERE slug = $2;", &data.Title, &queryParam)
 				if err != nil {
 					return ctx.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
 				}
 			}
 
-			err = s.dbPool.QueryRow(context.Background(), "SELECT id, slug, title, author, forum, message, created_at "+
+			err = s.db.QueryRow(context.Background(), "SELECT id, slug, title, author, forum, message, created_at "+
 				"FROM thread WHERE slug = $1;", &queryParam).Scan(&data.Id, &data.Slug, &data.Title, &data.Author, &data.Forum,
 				&data.Message, &data.Created)
 			return ctx.JSON(http.StatusOK, &data)
 		}
 
-		err = s.dbPool.QueryRow(context.Background(), "SELECT id FROM thread WHERE id = $1;",
+		err = s.db.QueryRow(context.Background(), "SELECT id FROM thread WHERE id = $1;",
 			&queryParam).Scan(&data.Id)
 		if err != nil {
 			if err == pgx.ErrNoRows {
@@ -297,25 +324,25 @@ func (s *Service) UpdateThread() echo.HandlerFunc {
 
 		if data.Message != "" && data.Title != "" {
 			data.Id = uint(id)
-			_, err = s.dbPool.Exec(context.Background(), "UPDATE thread SET title=$1, message=$2 WHERE id = $3;", &data.Title, &data.Message, &id)
+			_, err = s.db.Exec(context.Background(), "UPDATE thread SET title=$1, message=$2 WHERE id = $3;", &data.Title, &data.Message, &id)
 			if err != nil {
 				return ctx.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
 			}
 		} else if data.Message != "" {
 			data.Slug = queryParam
-			_, err = s.dbPool.Exec(context.Background(), "UPDATE thread SET message=$1 WHERE id = $2;", &data.Message, &id)
+			_, err = s.db.Exec(context.Background(), "UPDATE thread SET message=$1 WHERE id = $2;", &data.Message, &id)
 			if err != nil {
 				return ctx.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
 			}
 		} else if data.Title != "" {
 			data.Slug = queryParam
-			_, err = s.dbPool.Exec(context.Background(), "UPDATE thread SET title=$1 WHERE id = $2;", &data.Title, &id)
+			_, err = s.db.Exec(context.Background(), "UPDATE thread SET title=$1 WHERE id = $2;", &data.Title, &id)
 			if err != nil {
 				return ctx.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
 			}
 		}
 
-		err = s.dbPool.QueryRow(context.Background(), "SELECT title, author, forum, message, slug, created_at "+
+		err = s.db.QueryRow(context.Background(), "SELECT title, author, forum, message, slug, created_at "+
 			"FROM thread WHERE id = $1;", data.Id).Scan(&data.Title, &data.Author, &data.Forum,
 			&data.Message, &data.Slug, &data.Created)
 
@@ -344,15 +371,16 @@ func (s *Service) ThreadPostsFlat(thread, limit int, since *int, desc bool) ([]P
 	}
 
 	forum := ""
-	err := s.dbPool.QueryRow(context.Background(), "SELECT forum FROM thread WHERE id = $1", &thread).Scan(&forum)
+	err := s.db.QueryRow(context.Background(), "SELECT forum FROM thread WHERE id = $1", &thread).Scan(&forum)
 	if err != nil {
 		return nil, err
 	}
 
-	rows, err := s.dbPool.Query(context.Background(), sql, &thread)
+	rows, err := s.db.Query(context.Background(), sql, &thread)
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 	posts := make([]Post, 0, 8)
 	for rows.Next() {
 		var post Post
@@ -386,15 +414,16 @@ func (s *Service) ThreadPostsTree(thread, limit int, since *int, desc bool) ([]P
 	}
 
 	forum := ""
-	err := s.dbPool.QueryRow(context.Background(), "SELECT forum FROM thread WHERE id = $1", &thread).Scan(&forum)
+	err := s.db.QueryRow(context.Background(), "SELECT forum FROM thread WHERE id = $1", &thread).Scan(&forum)
 	if err != nil {
 		return nil, err
 	}
 
-	rows, err := s.dbPool.Query(context.Background(), sql, &thread)
+	rows, err := s.db.Query(context.Background(), sql, &thread)
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 	posts := make([]Post, 0, 8)
 	for rows.Next() {
 		var post Post
@@ -417,7 +446,7 @@ func (s *Service) ThreadPostsParentTree(thread, limit int, since *int, desc bool
 			operator = "<"
 		}
 		sincePost := ""
-		err := s.dbPool.QueryRow(context.Background(), "SELECT path FROM posts WHERE id = $1", since).Scan(&sincePost)
+		err := s.db.QueryRow(context.Background(), "SELECT path FROM posts WHERE id = $1", since).Scan(&sincePost)
 		if err != nil {
 			return nil, err
 		}
@@ -435,16 +464,17 @@ func (s *Service) ThreadPostsParentTree(thread, limit int, since *int, desc bool
 	}
 
 	forum := ""
-	err := s.dbPool.QueryRow(context.Background(), "SELECT forum FROM thread WHERE id = $1", &thread).Scan(&forum)
+	err := s.db.QueryRow(context.Background(), "SELECT forum FROM thread WHERE id = $1", &thread).Scan(&forum)
 	if err != nil {
 		return nil, err
 	}
 
 	parents := make([]Post, 0, 8)
-	rows, err := s.dbPool.Query(context.Background(), sql, &thread)
+	rows, err := s.db.Query(context.Background(), sql, &thread)
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 	for rows.Next() {
 		post := Post{}
 		post.Forum = forum
@@ -461,7 +491,7 @@ func (s *Service) ThreadPostsParentTree(thread, limit int, since *int, desc bool
 
 		sql = fmt.Sprintf(`SELECT id, parent, author, message, is_edited, thread_id, created_at FROM posts WHERE substring(path,1,7) = '%s' AND parent<>0 ORDER BY path`, s.padPostID(parent.Id))
 
-		rows, err = s.dbPool.Query(context.Background(), sql)
+		rows, err = s.db.Query(context.Background(), sql)
 		if err != nil {
 			return nil, err
 		}
@@ -491,7 +521,7 @@ func (s *Service) getSinceCondition(since *int, desc bool) (string, error) {
 		operator = "<"
 	}
 	sincePost := ""
-	err := s.dbPool.QueryRow(context.Background(), "SELECT path FROM posts WHERE id = $1", since).Scan(&sincePost)
+	err := s.db.QueryRow(context.Background(), "SELECT path FROM posts WHERE id = $1", since).Scan(&sincePost)
 	if err != nil {
 		return "", err
 	}

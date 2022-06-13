@@ -30,8 +30,8 @@ func (s *Service) PostGetOne() echo.HandlerFunc {
 			return ctx.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
 		}
 
-		data.Id = uint(id)
-		err = s.dbPool.QueryRow(context.Background(), "SELECT parent, author, message, is_edited, thread_id, "+
+		data.Id = uint32(id)
+		err = s.db.QueryRow(context.Background(), "SELECT parent, author, message, is_edited, thread_id, "+
 			"created_at FROM posts WHERE id = $1;", data.Id).Scan(&data.Parent, &data.Author, &data.Message,
 			&data.IsEdited, &data.Thread, &data.Created)
 		if err != nil {
@@ -39,7 +39,7 @@ func (s *Service) PostGetOne() echo.HandlerFunc {
 		}
 
 		thread := Thread{}
-		err = s.dbPool.QueryRow(context.Background(), "SELECT id, slug, title, author, forum, message, "+
+		err = s.db.QueryRow(context.Background(), "SELECT id, slug, title, author, forum, message, "+
 			"created_at FROM thread WHERE id = $1", &data.Thread).Scan(&thread.Id, &thread.Slug, &thread.Title,
 			&thread.Author, &thread.Forum, &thread.Message, &thread.Created)
 		if err != nil {
@@ -65,13 +65,14 @@ func (s *Service) PostGetOne() echo.HandlerFunc {
 
 			case "forum":
 				forum := Forum{}
-				conn, err := s.dbPool.Acquire(context.Background())
+				conn, err := s.db.Acquire(context.Background())
 				defer conn.Release()
 
 				tx, err := conn.Begin(context.Background())
 				if err != nil {
 					return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 				}
+				defer tx.Rollback(context.Background())
 
 				err = tx.QueryRow(context.Background(), "SELECT title, author, slug FROM forum WHERE slug=$1;", &data.Forum).Scan(&forum.Title, &forum.User, &forum.Slug)
 				if err != nil {
@@ -113,10 +114,10 @@ func (s *Service) UpdatePost() echo.HandlerFunc {
 		}
 
 		data := Post{}
-		err = s.dbPool.QueryRow(context.Background(), "SELECT id, parent, author, message, is_edited, thread_id, "+
+		err = s.db.QueryRow(context.Background(), "SELECT id, parent, author, message, is_edited, thread_id, "+
 			"created_at FROM posts WHERE id = $1;", &queryParam).Scan(&data.Id, &data.Parent, &data.Author, &data.Message,
 			&data.IsEdited, &data.Thread, &data.Created)
-		err = s.dbPool.QueryRow(context.Background(), "SELECT forum FROM thread WHERE id = $1;",
+		err = s.db.QueryRow(context.Background(), "SELECT forum FROM thread WHERE id = $1;",
 			data.Thread).Scan(&data.Forum)
 
 		if err != nil {
@@ -124,7 +125,7 @@ func (s *Service) UpdatePost() echo.HandlerFunc {
 		}
 
 		if postUPD.Message != data.Message && postUPD.Message != "" {
-			_, err = s.dbPool.Exec(context.Background(), "UPDATE posts SET message = $1, is_edited = true WHERE id = $2",
+			_, err = s.db.Exec(context.Background(), "UPDATE posts SET message = $1, is_edited = true WHERE id = $2",
 				&postUPD.Message, &queryParam)
 			data.Message = postUPD.Message
 			data.IsEdited = true
@@ -147,75 +148,22 @@ func (s *Service) PostsCreate() echo.HandlerFunc {
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, err)
 		}
-
 		slugOrId := ctx.Param("slug_or_id")
 
-		conn, err := s.dbPool.Acquire(context.Background())
-		defer conn.Release()
-
-		tx, err := conn.Begin(context.Background())
+		forum, id, err := s.GetForumAndIDFromThread(slugOrId)
 		if err != nil {
-			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
-		}
-
-		forum := ""
-
-		id, err := strconv.Atoi(slugOrId)
-		if err != nil {
-			err = tx.QueryRow(context.Background(), "SELECT forum FROM thread WHERE slug = $1",
-				&slugOrId).Scan(&forum)
-			if err != nil {
-				if err == pgx.ErrNoRows {
-					return ctx.JSON(http.StatusNotFound, ResponseError{Message: "Can't find post thread by id: " + slugOrId})
-				}
-				return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
-			}
-		} else {
-			err = tx.QueryRow(context.Background(), "SELECT forum FROM thread WHERE id = $1",
-				&id).Scan(&forum)
-			if err != nil {
-				if err == pgx.ErrNoRows {
-					return ctx.JSON(http.StatusNotFound, ResponseError{Message: "Can't find post thread by id: " + slugOrId})
-				}
-				return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
-			}
-		}
-
-		if err != nil {
-			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
+			return ctx.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
 		}
 
 		for i, _ := range postsArr {
-
 			thisTime := postsArr[i].Created.UTC()
-
 			if postsArr[i].Thread == 0 {
-				id, err := strconv.Atoi(slugOrId)
-				if err != nil {
-					err = tx.QueryRow(context.Background(), "SELECT id FROM thread WHERE slug = $1",
-						&slugOrId).Scan(&postsArr[i].Thread)
-					if err != nil && err == pgx.ErrNoRows {
-						return ctx.JSON(http.StatusNotFound, ResponseError{Message: "Can't find post thread by slug: " + slugOrId})
-					}
-					if err != nil {
-						return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
-					}
-				} else {
-					err = tx.QueryRow(context.Background(), "SELECT id FROM thread WHERE id = $1",
-						&slugOrId).Scan(&postsArr[i].Thread)
-					if err != nil && err == pgx.ErrNoRows {
-						return ctx.JSON(http.StatusNotFound, ResponseError{Message: "Can't find post thread by id: " + slugOrId})
-					}
-					if err != nil {
-						return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
-					}
-					postsArr[i].Thread = id
-				}
+				postsArr[i].Thread = id
 			}
 
 			if postsArr[i].Parent != 0 {
 				parentThread := 0
-				err = s.dbPool.QueryRow(context.Background(), "SELECT thread_id FROM posts WHERE id = $1", postsArr[i].Parent).Scan(&parentThread)
+				err = s.db.QueryRow(context.Background(), "SELECT thread_id FROM posts WHERE id = $1", postsArr[i].Parent).Scan(&parentThread)
 				if parentThread != postsArr[i].Thread {
 					return ctx.JSON(http.StatusConflict, ResponseError{Message: "Parent post was created in another thread"})
 				}
@@ -227,7 +175,7 @@ func (s *Service) PostsCreate() echo.HandlerFunc {
 				return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 			}
 
-			err = tx.QueryRow(context.Background(), "INSERT INTO posts(id, author, path, parent, message, thread_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+			err = s.db.QueryRow(context.Background(), "INSERT INTO posts(id, author, path, parent, message, thread_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
 				&postsArr[i].Id, &postsArr[i].Author, &postsArr[i].Path, &postsArr[i].Parent, &postsArr[i].Message, &postsArr[i].Thread, &thisTime).Scan(&postsArr[i].Id)
 			if err != nil {
 				if strings.Contains(err.Error(), "23503") {
@@ -237,28 +185,23 @@ func (s *Service) PostsCreate() echo.HandlerFunc {
 			}
 
 			postsArr[i].Forum = forum
-			_, err = tx.Exec(context.Background(), "INSERT INTO forum_users(author, forum) VALUES ($1, $2);", &postsArr[i].Author, &postsArr[i].Forum)
+			_, err = s.db.Exec(context.Background(), "INSERT INTO forum_users(author, forum) VALUES ($1, $2);", &postsArr[i].Author, &postsArr[i].Forum)
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 			}
-		}
-
-		err = tx.Commit(context.Background())
-		if err != nil {
-			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 		}
 
 		return ctx.JSON(http.StatusCreated, &postsArr)
 	}
 }
 
-func (s *Service) getPostPath(id, parentID uint) (string, error) {
+func (s *Service) getPostPath(id uint32, parentID uint) (string, error) {
 	var base string
 	if parentID == 0 {
 		base = s.getZeroPostPath()
 	} else {
 		parentPath := ""
-		err := s.dbPool.QueryRow(context.Background(), "SELECT path FROM posts WHERE id = $1", &parentID).Scan(&parentPath)
+		err := s.db.QueryRow(context.Background(), "SELECT path FROM posts WHERE id = $1", &parentID).Scan(&parentPath)
 		if err != nil {
 			return "", err
 		}
@@ -268,7 +211,7 @@ func (s *Service) getPostPath(id, parentID uint) (string, error) {
 	return path, nil
 }
 
-func (s *Service) padPostID(id uint) string {
+func (s *Service) padPostID(id uint32) string {
 	return fmt.Sprintf("%0"+strconv.Itoa(maxIDLength)+"d", id)
 }
 
