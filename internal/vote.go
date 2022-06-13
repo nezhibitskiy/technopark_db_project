@@ -75,61 +75,61 @@ func (s *Service) ThreadVote() echo.HandlerFunc {
 			return ctx.JSON(http.StatusInternalServerError, err)
 		}
 		if err == pgx.ErrNoRows {
-			conn, err := s.db.Acquire(context.Background())
-			if err != nil {
-				return ctx.JSON(http.StatusInternalServerError, err)
-			}
-			defer conn.Release()
+			//conn, err := s.db.Acquire(context.Background())
+			//if err != nil {
+			//	return ctx.JSON(http.StatusInternalServerError, err)
+			//}
+			//defer conn.Release()
+			//
+			//tx, err := conn.Begin(context.Background())
+			//if err != nil {
+			//	return ctx.JSON(http.StatusInternalServerError, err)
+			//}
+			//defer tx.Rollback(context.Background())
 
-			tx, err := conn.Begin(context.Background())
-			if err != nil {
-				return ctx.JSON(http.StatusInternalServerError, err)
-			}
-			defer tx.Rollback(context.Background())
-
-			_, err = tx.Exec(context.Background(), "INSERT INTO votes(thread_id, author, value) VALUES($1, $2, $3);",
+			_, err = s.db.Exec(context.Background(), "INSERT INTO votes(thread_id, author, value) VALUES($1, $2, $3);",
 				&thread.Id, &data.Nickname, &data.Voice)
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)
 			}
 
-			err = tx.QueryRow(context.Background(), "UPDATE thread SET votes = votes + $1 WHERE id = $2 "+
+			err = s.db.QueryRow(context.Background(), "UPDATE thread SET votes = votes + $1 WHERE id = $2 "+
 				"RETURNING votes", &data.Voice, &thread.Id).Scan(&thread.Votes)
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)
 			}
-			err = tx.Commit(context.Background())
-			if err != nil {
-				return ctx.JSON(http.StatusInternalServerError, err)
-			}
+			//err = tx.Commit(context.Background())
+			//if err != nil {
+			//	return ctx.JSON(http.StatusInternalServerError, err)
+			//}
 		} else {
-			conn, err := s.db.Acquire(context.Background())
-			if err != nil {
-				return ctx.JSON(http.StatusInternalServerError, err)
-			}
-			defer conn.Release()
+			//conn, err := s.db.Acquire(context.Background())
+			//if err != nil {
+			//	return ctx.JSON(http.StatusInternalServerError, err)
+			//}
+			//defer conn.Release()
+			//
+			//tx, err := conn.Begin(context.Background())
+			//if err != nil {
+			//	return ctx.JSON(http.StatusInternalServerError, err)
+			//}
+			//defer tx.Rollback(context.Background())
 
-			tx, err := conn.Begin(context.Background())
-			if err != nil {
-				return ctx.JSON(http.StatusInternalServerError, err)
-			}
-			defer tx.Rollback(context.Background())
-
-			_, err = tx.Exec(context.Background(), "UPDATE votes SET value = $1 WHERE id = $2;",
+			_, err = s.db.Exec(context.Background(), "UPDATE votes SET value = $1 WHERE id = $2;",
 				&data.Voice, &voteID)
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)
 			}
 			data.Voice = data.Voice * 2
-			err = tx.QueryRow(context.Background(), "UPDATE thread SET votes = votes + $1 WHERE id = $2 "+
+			err = s.db.QueryRow(context.Background(), "UPDATE thread SET votes = votes + $1 WHERE id = $2 "+
 				"RETURNING votes", &data.Voice, &thread.Id).Scan(&thread.Votes)
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)
 			}
-			err = tx.Commit(context.Background())
-			if err != nil {
-				return ctx.JSON(http.StatusInternalServerError, err)
-			}
+			//err = tx.Commit(context.Background())
+			//if err != nil {
+			//	return ctx.JSON(http.StatusInternalServerError, err)
+			//}
 		}
 		return ctx.JSON(http.StatusOK, &thread)
 	}

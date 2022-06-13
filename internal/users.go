@@ -2,7 +2,6 @@ package internal
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/jackc/pgx/v4"
 	"github.com/labstack/echo/v4"
 	"net/http"
@@ -95,8 +94,7 @@ func (s *Service) UserCreate() echo.HandlerFunc {
 			return ctx.JSON(http.StatusInternalServerError, err)
 		}
 		userData.Nickname = nickname
-		response, _ := json.Marshal(userData)
-		return ctx.JSONBlob(http.StatusCreated, response)
+		return ctx.JSON(http.StatusCreated, &userData)
 	}
 }
 
