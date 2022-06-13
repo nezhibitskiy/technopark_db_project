@@ -2,7 +2,6 @@ package internal
 
 import (
 	"context"
-	"github.com/jackc/pgx/v4"
 	"github.com/labstack/echo/v4"
 	"net/http"
 )
@@ -119,20 +118,20 @@ func (s *Service) UpdateUser() echo.HandlerFunc {
 			return ctx.NoContent(http.StatusBadRequest)
 		}
 
-		if userData.Email != "" {
-			oldUsers, err := s.searchUsersByEmail(userData.Email)
-			if err != nil && err != pgx.ErrNoRows {
-				return ctx.JSON(http.StatusInternalServerError, err)
-			}
-			if len(oldUsers) > 0 {
-				if oldUsers[0].Nickname != nickname {
-					return ctx.JSON(http.StatusConflict, ResponseError{Message: "This email is already registered by user: " + oldUsers[0].Nickname})
-				}
+		var oldUsersEmail *User
+
+		oldUsersEmail, err = s.userCache.GetUserByEmail(userData.Email)
+		if err != nil && err != ErrUserNotFound {
+			return ctx.JSON(http.StatusInternalServerError, err)
+		}
+
+		if userData.Email != "" && oldUsersEmail != nil {
+			if oldUsersEmail.Nickname != nickname {
+				return ctx.JSON(http.StatusConflict, ResponseError{Message: "This email is already registered by user: " + oldUsersEmail.Nickname})
 			}
 		}
 
 		user, err := s.userCache.GetUserByNickname(nickname)
-
 		if user == nil {
 			return ctx.JSON(http.StatusNotFound, ResponseError{Message: "Can't find user by nickname: " + nickname})
 		}
@@ -143,6 +142,7 @@ func (s *Service) UpdateUser() echo.HandlerFunc {
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)
 			}
+			user.Fullname = userData.Fullname
 		}
 		if userData.About != "" {
 			_, err = s.db.Exec(context.Background(), "UPDATE users SET about = $1 "+
@@ -150,6 +150,7 @@ func (s *Service) UpdateUser() echo.HandlerFunc {
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)
 			}
+			user.About = userData.About
 		}
 		if userData.Email != "" {
 			_, err = s.db.Exec(context.Background(), "UPDATE users SET email = $1 "+
@@ -157,6 +158,7 @@ func (s *Service) UpdateUser() echo.HandlerFunc {
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)
 			}
+			user.Email = userData.Email
 		}
 
 		if userData.About == "" || userData.Fullname == "" || userData.Email == "" {
@@ -168,7 +170,7 @@ func (s *Service) UpdateUser() echo.HandlerFunc {
 		}
 
 		userData.Nickname = nickname
-		s.userCache.Add(&userData)
+		s.userCache.Add(user)
 		return ctx.JSON(http.StatusOK, &userData)
 	}
 }

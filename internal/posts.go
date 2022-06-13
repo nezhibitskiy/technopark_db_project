@@ -142,6 +142,7 @@ func (s *Service) UpdatePost() echo.HandlerFunc {
 func (s *Service) PostsCreate() echo.HandlerFunc {
 	return func(ctx echo.Context) error {
 		postsArr := make([]Post, 0, 8)
+		created := time.Now()
 		err := ctx.Bind(&postsArr)
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, err)
@@ -154,10 +155,10 @@ func (s *Service) PostsCreate() echo.HandlerFunc {
 		}
 
 		for i, _ := range postsArr {
-			var thisTime time.Time
-			if !postsArr[0].Created.IsZero() {
-				thisTime = postsArr[0].Created.UTC()
-			}
+			//var thisTime time.Time
+			//if !postsArr[0].Created.IsZero() {
+			//	thisTime = postsArr[0].Created.UTC()
+			//}
 
 			if postsArr[i].Thread == 0 {
 				postsArr[i].Thread = id
@@ -178,7 +179,7 @@ func (s *Service) PostsCreate() echo.HandlerFunc {
 			}
 
 			err = s.db.QueryRow(context.Background(), "INSERT INTO posts(id, author, path, parent, message, thread_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
-				&postsArr[i].Id, &postsArr[i].Author, &postsArr[i].Path, &postsArr[i].Parent, &postsArr[i].Message, &postsArr[i].Thread, &thisTime).Scan(&postsArr[i].Id)
+				&postsArr[i].Id, &postsArr[i].Author, &postsArr[i].Path, &postsArr[i].Parent, &postsArr[i].Message, &postsArr[i].Thread, &created).Scan(&postsArr[i].Id)
 			if err != nil {
 				if strings.Contains(err.Error(), "23503") {
 					return ctx.JSON(http.StatusNotFound, ResponseError{Message: "Can't find post author by nickname: " + postsArr[i].Author})

@@ -29,7 +29,7 @@ func (uc *UserCache) Add(data *User) {
 	uc.userByNickMutex.Unlock()
 
 	uc.nickByEmailMutex.Lock()
-	uc.nickByEmail[data.Email] = data.Nickname
+	uc.nickByEmail[strings.ToLower(data.Email)] = data.Nickname
 	uc.nickByEmailMutex.Unlock()
 }
 
@@ -45,7 +45,7 @@ func (uc *UserCache) GetUserByNickname(nick string) (*User, error) {
 
 func (uc *UserCache) GetUserByEmail(email string) (*User, error) {
 	uc.nickByEmailMutex.RLock()
-	nick, ok := uc.nickByEmail[email]
+	nick, ok := uc.nickByEmail[strings.ToLower(email)]
 	uc.nickByEmailMutex.RUnlock()
 	if !ok {
 		return nil, ErrUserNotFound
