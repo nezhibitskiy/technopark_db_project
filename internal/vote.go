@@ -63,6 +63,10 @@ func (s *Service) ThreadVote() echo.HandlerFunc {
 		voteID, err := s.FindUserVote(data, thread.Id)
 		if err != nil && err != pgx.ErrNoRows {
 			if err == errVoteExists {
+				err = s.FillThreadVotes(thread)
+				if err != nil {
+					return ctx.JSON(http.StatusInternalServerError, err)
+				}
 				return ctx.JSON(http.StatusOK, &thread)
 			}
 			return ctx.JSON(http.StatusInternalServerError, err)
