@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS posts(
     message TEXT NOT NULL,
     is_edited BOOL DEFAULT FALSE,
     thread_id INT NOT NULL,
-    created_at timestamptz NOT NULL,
+    created_at timestamp NOT NULL,
     CONSTRAINT posts_user_fk FOREIGN KEY (author) REFERENCES users(nickname)
 --     CONSTRAINT posts_thread_fk FOREIGN KEY (thread_id) REFERENCES thread(id)
 --     CONSTRAINT posts_post_fk FOREIGN KEY (parent) REFERENCES posts(id)

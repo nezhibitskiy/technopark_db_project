@@ -154,13 +154,11 @@ func (s *Service) PostsCreate() echo.HandlerFunc {
 			return ctx.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
 		}
 
-		if len(postsArr) > 0 {
-			if postsArr[0].Created.String() != "" {
-				created = postsArr[0].Created
-			}
-		}
-
 		for i, _ := range postsArr {
+			postCreated := created
+			if postsArr[i].Created.String() != "" {
+				postCreated = postsArr[i].Created
+			}
 
 			if postsArr[i].Thread == 0 {
 				postsArr[i].Thread = id
@@ -181,7 +179,7 @@ func (s *Service) PostsCreate() echo.HandlerFunc {
 			}
 
 			err = s.db.QueryRow(context.Background(), "INSERT INTO posts(id, author, path, parent, message, thread_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
-				&postsArr[i].Id, &postsArr[i].Author, &postsArr[i].Path, &postsArr[i].Parent, &postsArr[i].Message, &postsArr[i].Thread, &created).Scan(&postsArr[i].Id)
+				&postsArr[i].Id, &postsArr[i].Author, &postsArr[i].Path, &postsArr[i].Parent, &postsArr[i].Message, &postsArr[i].Thread, &postCreated).Scan(&postsArr[i].Id)
 			if err != nil {
 				if strings.Contains(err.Error(), "23503") {
 					return ctx.JSON(http.StatusNotFound, ResponseError{Message: "Can't find post author by nickname: " + postsArr[i].Author})
