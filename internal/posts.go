@@ -32,16 +32,16 @@ func (s *Service) PostGetOne() echo.HandlerFunc {
 		}
 
 		data.Id = uint32(id)
-		err = s.db.QueryRow("SELECT parent, author, message, is_edited, thread_id, "+
+		err = s.db.QueryRow("SELECT parent, author, message, is_edited, thread, "+
 			"created_at FROM posts WHERE id = $1;", data.Id).Scan(&data.Parent, &data.Author, &data.Message,
-			&data.IsEdited, &data.ThreadId, &data.CreatedAt)
+			&data.IsEdited, &data.Thread, &data.CreatedAt)
 		if err != nil {
 			return ctx.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
 		}
 
 		thread := Thread{}
 		err = s.db.QueryRow("SELECT id, slug, title, author, forum, message, "+
-			"created_at FROM thread WHERE id = $1", &data.ThreadId).Scan(&thread.Id, &thread.Slug, &thread.Title,
+			"created_at FROM thread WHERE id = $1", &data.Thread).Scan(&thread.Id, &thread.Slug, &thread.Title,
 			&thread.Author, &thread.Forum, &thread.Message, &thread.CreatedAt)
 		if err != nil {
 			return ctx.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
@@ -80,7 +80,7 @@ func (s *Service) PostGetOne() echo.HandlerFunc {
 					return ctx.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
 				}
 
-				err = tx.QueryRow("SELECT count(*) FROM posts RIGHT JOIN thread t on t.id = posts.thread_id WHERE t.forum=$1;", &data.Forum).Scan(&forum.Posts)
+				err = tx.QueryRow("SELECT count(*) FROM posts RIGHT JOIN thread t on t.id = posts.thread WHERE t.forum=$1;", &data.Forum).Scan(&forum.Posts)
 				if err != nil {
 					return ctx.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
 				}
@@ -110,11 +110,11 @@ func (s *Service) UpdatePost() echo.HandlerFunc {
 		}
 
 		data := Post{}
-		err = s.db.QueryRow("SELECT id, parent, author, message, is_edited, thread_id, "+
+		err = s.db.QueryRow("SELECT id, parent, author, message, is_edited, thread, "+
 			"created_at FROM posts WHERE id = $1;", &queryParam).Scan(&data.Id, &data.Parent, &data.Author, &data.Message,
-			&data.IsEdited, &data.ThreadId, &data.CreatedAt)
+			&data.IsEdited, &data.Thread, &data.CreatedAt)
 		err = s.db.QueryRow("SELECT forum FROM thread WHERE id = $1;",
-			data.ThreadId).Scan(&data.Forum)
+			data.Thread).Scan(&data.Forum)
 
 		if err != nil {
 			return ctx.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
@@ -153,14 +153,14 @@ func (s *Service) PostsCreate() echo.HandlerFunc {
 		}
 
 		for i, _ := range postsArr {
-			if postsArr[i].ThreadId == 0 {
-				postsArr[i].ThreadId = id
+			if postsArr[i].Thread == 0 {
+				postsArr[i].Thread = id
 			}
 
 			if postsArr[i].Parent != 0 {
 				parentThread := 0
-				err = s.db.QueryRow("SELECT thread_id FROM posts WHERE id = $1", postsArr[i].Parent).Scan(&parentThread)
-				if parentThread != postsArr[i].ThreadId {
+				err = s.db.QueryRow("SELECT thread FROM posts WHERE id = $1", postsArr[i].Parent).Scan(&parentThread)
+				if parentThread != postsArr[i].Thread {
 					return ctx.JSON(http.StatusConflict, ResponseError{Message: "Parent post was created in another thread"})
 				}
 			}
@@ -179,17 +179,12 @@ func (s *Service) PostsCreate() echo.HandlerFunc {
 				return ctx.JSON(http.StatusNotFound, ResponseError{Message: "Can't find thread author by nickname: " + postsArr[i].Author})
 			}
 
-			err = s.db.QueryRow("INSERT INTO posts(id, author, path, parent, message, thread_id, created_at, forum) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
-				&postsArr[i].Id, &postsArr[i].Author, &postsArr[i].Path, &postsArr[i].Parent, &postsArr[i].Message, &postsArr[i].ThreadId, &created, &forum).Scan(&postsArr[i].Id)
+			err = s.db.QueryRow("INSERT INTO posts(id, author, path, parent, message, thread, created_at, forum) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+				&postsArr[i].Id, &postsArr[i].Author, &postsArr[i].Path, &postsArr[i].Parent, &postsArr[i].Message, &postsArr[i].Thread, &created, &forum).Scan(&postsArr[i].Id)
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 			}
-
 			postsArr[i].Forum = forum
-			_, err = s.db.Exec("INSERT INTO forum_users(author, forum) VALUES ($1, $2);", &postsArr[i].Author, &postsArr[i].Forum)
-			if err != nil {
-				return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
-			}
 		}
 
 		return ctx.JSON(http.StatusCreated, &postsArr)
@@ -222,4 +217,14 @@ func (s *Service) getZeroPostPath() string {
 		path += pathDelim + zeroPathStud
 	}
 	return path
+}
+
+func (s *Service) getPosts(orderBy []string, limit int, filter string, params ...interface{}) ([]Post, error) {
+	query := fmt.Sprintf(`SELECT * FROM posts WHERE %s ORDER BY %s`, filter, strings.Join(orderBy, ","))
+	if limit > 0 {
+		query += fmt.Sprintf(" limit %d", limit)
+	}
+	posts := make([]Post, 0, limit)
+	err := s.db.Select(&posts, query, params...)
+	return posts, err
 }

@@ -119,11 +119,6 @@ func (s *Service) ThreadCreate() echo.HandlerFunc {
 				return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 			}
 
-			_, err = tx.Exec("INSERT INTO forum_users(author, forum) VALUES ($1, $2);", &data.Author, &data.Forum)
-			if err != nil {
-				return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
-			}
-
 			err = tx.Commit()
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
@@ -199,34 +194,39 @@ func (s *Service) ThreadGetPosts() echo.HandlerFunc {
 			}
 		}
 
-		switch sortParam {
-		case "flat":
-			posts, err := s.ThreadPostsFlat(id, limit, since, desc)
-			if err != nil {
-				return ctx.JSON(http.StatusInternalServerError, err)
-			}
-			return ctx.JSON(http.StatusOK, posts)
-
-		case "tree":
-			posts, err := s.ThreadPostsTree(id, limit, since, desc)
-			if err != nil {
-				return ctx.JSON(http.StatusInternalServerError, err)
-			}
-			return ctx.JSON(http.StatusOK, posts)
-		case "parent_tree":
-			posts, err := s.ThreadPostsParentTree(id, limit, since, desc)
-			if err != nil {
-				return ctx.JSON(http.StatusInternalServerError, err)
-			}
-			return ctx.JSON(http.StatusOK, posts)
-		default:
-			posts, err := s.ThreadPostsFlat(id, limit, since, desc)
-			if err != nil {
-				return ctx.JSON(http.StatusInternalServerError, err)
-			}
-			return ctx.JSON(http.StatusOK, posts)
-
+		posts, err := s.GetThreadPosts(id, limit, since, sortParam, desc)
+		if err != nil {
+			return ctx.JSON(http.StatusInternalServerError, err)
 		}
+		return ctx.JSON(http.StatusOK, posts)
+		//switch sortParam {
+		//case "flat":
+		//	posts, err := s.ThreadPostsFlat(id, limit, since, desc)
+		//	if err != nil {
+		//		return ctx.JSON(http.StatusInternalServerError, err)
+		//	}
+		//	return ctx.JSON(http.StatusOK, posts)
+		//
+		//case "tree":
+		//	posts, err := s.ThreadPostsTree(id, limit, since, desc)
+		//	if err != nil {
+		//		return ctx.JSON(http.StatusInternalServerError, err)
+		//	}
+		//	return ctx.JSON(http.StatusOK, posts)
+		//case "parent_tree":
+		//	posts, err := s.ThreadPostsParentTree(id, limit, since, desc)
+		//	if err != nil {
+		//		return ctx.JSON(http.StatusInternalServerError, err)
+		//	}
+		//	return ctx.JSON(http.StatusOK, posts)
+		//default:
+		//	posts, err := s.ThreadPostsFlat(id, limit, since, desc)
+		//	if err != nil {
+		//		return ctx.JSON(http.StatusInternalServerError, err)
+		//	}
+		//	return ctx.JSON(http.StatusOK, posts)
+		//
+		//}
 	}
 }
 func (s *Service) UpdateThread() echo.HandlerFunc {
@@ -311,8 +311,8 @@ func (s *Service) UpdateThread() echo.HandlerFunc {
 
 func (s *Service) ThreadPostsFlat(thread, limit int, since *int, desc bool) ([]Post, error) {
 
-	sql := "SELECT id, parent, author, message, is_edited, thread_id, created_at, forum FROM posts " +
-		"WHERE thread_id = $1 "
+	sql := "SELECT id, parent, author, message, is_edited, thread, created_at, forum FROM posts " +
+		"WHERE thread = $1 "
 	if since != nil {
 		if desc {
 			sql = fmt.Sprintf("%s %s %d ", sql, "AND id <", *since)
@@ -339,8 +339,8 @@ func (s *Service) ThreadPostsFlat(thread, limit int, since *int, desc bool) ([]P
 }
 
 func (s *Service) ThreadPostsTree(thread, limit int, since *int, desc bool) ([]Post, error) {
-	sql := "SELECT id, parent, author, message, is_edited, thread_id, created_at FROM posts " +
-		"WHERE thread_id = $1 "
+	sql := "SELECT id, parent, author, message, is_edited, thread, created_at FROM posts " +
+		"WHERE thread = $1 "
 	if since != nil {
 		sinceCondition, err := s.getSinceCondition(since, desc)
 		if err != nil {
@@ -373,7 +373,7 @@ func (s *Service) ThreadPostsTree(thread, limit int, since *int, desc bool) ([]P
 
 func (s *Service) ThreadPostsParentTree(thread, limit int, since *int, desc bool) ([]Post, error) {
 
-	sql := "SELECT id, parent, author, message, is_edited, thread_id, created_at FROM posts WHERE thread_id = $1 "
+	sql := "SELECT id, parent, author, message, is_edited, thread, created_at FROM posts WHERE thread = $1 "
 	if since != nil {
 		var operator = ">"
 		if desc {
@@ -412,7 +412,7 @@ func (s *Service) ThreadPostsParentTree(thread, limit int, since *int, desc bool
 	for rows.Next() {
 		post := Post{}
 		post.Forum = forum
-		err = rows.Scan(&post.Id, &post.Parent, &post.Author, &post.Message, &post.IsEdited, &post.ThreadId, &post.CreatedAt)
+		err = rows.Scan(&post.Id, &post.Parent, &post.Author, &post.Message, &post.IsEdited, &post.Thread, &post.CreatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -423,7 +423,7 @@ func (s *Service) ThreadPostsParentTree(thread, limit int, since *int, desc bool
 	for _, parent := range parents {
 		var childs []Post
 
-		sql = fmt.Sprintf(`SELECT id, parent, author, message, is_edited, thread_id, created_at FROM posts WHERE substring(path,1,7) = '%s' AND parent<>0 ORDER BY path`, s.padPostID(parent.Id))
+		sql = fmt.Sprintf(`SELECT id, parent, author, message, is_edited, thread, created_at FROM posts WHERE substring(path,1,7) = '%s' AND parent<>0 ORDER BY path`, s.padPostID(parent.Id))
 
 		rows, err = s.db.Query(sql)
 		if err != nil {
@@ -432,7 +432,7 @@ func (s *Service) ThreadPostsParentTree(thread, limit int, since *int, desc bool
 		for rows.Next() {
 			post := Post{}
 			post.Forum = forum
-			err = rows.Scan(&post.Id, &post.Parent, &post.Author, &post.Message, &post.IsEdited, &post.ThreadId, &post.CreatedAt)
+			err = rows.Scan(&post.Id, &post.Parent, &post.Author, &post.Message, &post.IsEdited, &post.Thread, &post.CreatedAt)
 			if err != nil {
 				return nil, err
 			}
@@ -460,4 +460,107 @@ func (s *Service) getSinceCondition(since *int, desc bool) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("path %s '%s'", operator, sincePost), nil
+}
+
+func (s *Service) GetThreadPosts(thread, limit int, since *int, sort string, desc bool) ([]Post, error) {
+	switch sort {
+	case "flat":
+		return s.getThreadPostsFlat(thread, limit, since, desc)
+	case "tree":
+		return s.getThreadPostsTree(thread, limit, since, desc)
+	case "parent_tree":
+		return s.getThreadPostsParentTree(thread, limit, since, desc)
+	}
+	return nil, fmt.Errorf("unknown sort method")
+}
+
+func (s *Service) getThreadPostsFlat(thread, limit int, since *int, desc bool) ([]Post, error) {
+	order := "asc"
+	if desc {
+		order = "desc"
+	}
+	orderBy := []string{"created_at " + order, "id " + order}
+	filter := "thread = $1"
+	params := []interface{}{thread}
+	if since != nil {
+		if desc {
+			filter += " and id < $2"
+		} else {
+			filter += " and id > $2"
+		}
+		params = append(params, *since)
+	}
+	return s.getPosts(orderBy, limit, filter, params...)
+}
+
+func (s *Service) getThreadPostsTree(thread, limit int, since *int, desc bool) ([]Post, error) {
+	conditions := []string{"thread = $1"}
+	params := []interface{}{thread}
+	if since != nil {
+		sinceCond, err := s.getSinceCondition(since, desc)
+		if err != nil {
+			return nil, err
+		}
+		conditions = append(conditions, sinceCond)
+	}
+
+	orderBy := []string{"path " + s.getOrder(desc)}
+	filter := strings.Join(conditions, " and ")
+	return s.getPosts(orderBy, limit, filter, params...)
+}
+
+func (s *Service) getThreadPostsParentTree(thread, limit int, since *int, desc bool) ([]Post, error) {
+	conditions := []string{"parent=0", "thread=$1"}
+
+	if since != nil {
+		var operator = ">"
+		if desc {
+			operator = "<"
+		}
+		sincePost, err := s.getPostFields("path", "id=$1", *since)
+		if err != nil {
+			return nil, err
+		}
+		sinceCond := fmt.Sprintf("path %s '%s'", operator, s.getRootPath(sincePost.Path))
+		conditions = append(conditions, sinceCond)
+	}
+
+	filter := strings.Join(conditions, " and ")
+	var parents []Post
+	err := s.db.Select(&parents, fmt.Sprintf(
+		`select * from posts where %s order by id %s limit %d`, filter, s.getOrder(desc), limit),
+		thread,
+	)
+	if err != nil {
+		return nil, err
+	}
+	posts := make([]Post, 0)
+	for _, parent := range parents {
+		var childs []Post
+		err := s.db.Select(&childs, fmt.Sprintf(
+			`select * from posts where substring(path,1,7) = '%s' and parent<>0 order by path`, s.padPostID(parent.Id),
+		))
+		if err != nil {
+			return nil, err
+		}
+		posts = append(posts, parent)
+		posts = append(posts, childs...)
+	}
+	return posts, nil
+}
+
+func (s *Service) getOrder(desc bool) string {
+	if desc {
+		return " desc"
+	}
+	return ""
+}
+
+func (s *Service) getPostFields(fields, filter string, params ...interface{}) (*Post, error) {
+	p := Post{}
+	err := s.db.Get(&p, "select "+fields+" from posts where "+filter, params...)
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
 }

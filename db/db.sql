@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS posts(
     path TEXT NOT NULL DEFAULT '',
     author CITEXT NOT NULL,
     forum CITEXT NOT NULL,
-    thread_id INT NOT NULL,
+    thread INT NOT NULL,
     message TEXT NOT NULL,
     is_edited BOOL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL
@@ -55,17 +55,20 @@ CREATE TABLE IF NOT EXISTS forum_users(
 );
 
 
-CREATE INDEX ON forum_users (author, forum);
+CREATE INDEX IF NOT EXISTS forum_users_index ON forum_users (author, forum);
 
-CREATE INDEX ON thread (slug);
-CREATE INDEX ON thread (created_at, forum);
-CREATE INDEX ON thread (forum, author);
+CREATE INDEX IF NOT EXISTS thread_slug_index ON thread (slug);
+CREATE INDEX IF NOT EXISTS thread_created_at_index ON thread (created_at, forum);
+CREATE INDEX IF NOT EXISTS thread_forum_author_index ON thread (forum, author);
 
-CREATE INDEX ON posts (thread_id);
-CREATE INDEX ON posts (substring(path,1,7));
-create index on posts (forum, author);
+CREATE INDEX IF NOT EXISTS post_thread_index ON posts (thread);
+CREATE INDEX IF NOT EXISTS post_substring_index ON posts (substring(path,1,7));
+create index IF NOT EXISTS post_forum_index on posts (forum, author);
 
-CREATE INDEX ON votes (thread_id, author);
+CREATE INDEX IF NOT EXISTS votes_index ON votes (thread_id, author);
+
+create unique index IF NOT EXISTS forum_users_index on forum_users (author, forum);
+
 
 create function inc_forum_thread() returns trigger as
 $$

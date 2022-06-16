@@ -43,7 +43,7 @@ type Post struct {
 	Forum string `db:"forum" json:"forum,omitempty"`
 
 	// Идентификатор ветви (id) обсуждения данного сообещния.
-	ThreadId int `db:"thread_id" json:"thread,omitempty"`
+	Thread int `db:"thread" json:"thread,omitempty"`
 
 	// Дата создания сообщения на форуме.
 	CreatedAt time.Time `db:"created_at" json:"created,omitempty"`
