@@ -1,14 +1,10 @@
-FROM ubuntu:20.04
+FROM ubuntu:18.04
 
 EXPOSE 5432
 EXPOSE 5000
 
-RUN apt-get -y update && apt-get install -y tzdata
-ENV TZ=Russia/Moscow
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
-
 ENV DEBIAN_FRONTEND 'noninteractive'
-ENV PGVER 12
+ENV PGVER 10
 RUN apt -y update && apt install -y postgresql-$PGVER
 RUN apt install -y wget
 RUN apt install -y git
@@ -32,8 +28,8 @@ VOLUME ["/etc/postgresql", "/var/log/postgresql", "/var/lib/postgresql"]
 
 USER root
 
-RUN wget https://dl.google.com/go/go1.18.linux-amd64.tar.gz
-RUN tar -xvf go1.18.linux-amd64.tar.gz
+RUN wget https://dl.google.com/go/go1.13.linux-amd64.tar.gz
+RUN tar -xvf go1.13.linux-amd64.tar.gz
 RUN mv go /usr/local
 
 ENV GOROOT /usr/local/go
