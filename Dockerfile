@@ -28,8 +28,8 @@ VOLUME ["/etc/postgresql", "/var/log/postgresql", "/var/lib/postgresql"]
 
 USER root
 
-RUN wget https://dl.google.com/go/go1.13.linux-amd64.tar.gz
-RUN tar -xvf go1.13.linux-amd64.tar.gz
+RUN wget https://dl.google.com/go/go1.18.linux-amd64.tar.gz
+RUN tar -xvf go1.18.linux-amd64.tar.gz
 RUN mv go /usr/local
 
 ENV GOROOT /usr/local/go
