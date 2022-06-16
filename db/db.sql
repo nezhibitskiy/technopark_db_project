@@ -3,7 +3,7 @@ create extension if not exists citext;
 create table "user"
 (
     "id"       serial,
-    "nickname" citext not null primary key,
+    "nickname" citext COLLATE "ucs_basic" not null primary key,
     "email"    citext not null unique,
     "fullname" text   not null,
     "about"    text   not null default ''
