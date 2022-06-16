@@ -5,13 +5,30 @@ import (
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/jmoiron/sqlx"
 	"github.com/joho/godotenv"
-	"github.com/labstack/echo/v4"
+	"github.com/valyala/fasthttp"
 	"log"
 	"os"
-	"project/internal"
+	"project/pkg/api"
+	"project/pkg/api/repository"
 )
 
-func ConnectDB() (*sqlx.DB, error) {
+const PORT = "5000"
+
+func main() {
+	db, err := NewDB()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	repo := repository.NewRepository(db)
+	usecase := api.NewUsecase(repo)
+	handler := api.NewHandler(usecase)
+
+	fmt.Println("listening port " + PORT)
+	log.Fatal(fasthttp.ListenAndServe(":"+PORT, handler.GetHandleFunc()))
+}
+
+func NewDB() (*sqlx.DB, error) {
 	if err := godotenv.Load(".env"); err != nil {
 		return nil, err
 	}
@@ -31,19 +48,4 @@ func ConnectDB() (*sqlx.DB, error) {
 		return nil, err
 	}
 	return db, nil
-}
-
-func main() {
-	dbPool, err := ConnectDB()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer dbPool.Close()
-	s := echo.New()
-
-	internal.RegisterService(s, dbPool)
-	err = s.Start(":5000")
-	if err != nil {
-		log.Fatal(err)
-	}
 }
