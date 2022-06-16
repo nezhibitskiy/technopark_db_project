@@ -1,74 +1,40 @@
-CREATE EXTENSION IF NOT EXISTS citext;
+create extension if not exists citext;
 
-CREATE TABLE IF NOT EXISTS users(
-    id SERIAL,
-    nickname CITEXT COLLATE "ucs_basic" PRIMARY KEY UNIQUE,
-    fullname TEXT NOT NULL,
-    about TEXT NOT NULL,
-    email CITEXT UNIQUE NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS forum(
-    id      SERIAL,
-    slug    CITEXT CONSTRAINT forum_pk PRIMARY KEY UNIQUE,
-    title   TEXT,
-    author  CITEXT NOT NULL,
-    posts   INT DEFAULT 0 NOT NULL,
-    threads INT DEFAULT 0 NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS thread(
-    id SERIAL PRIMARY KEY,
-    slug CITEXT NOT NULL,
-    title TEXT NOT NULL,
-    author CITEXT NOT NULL,
-    forum CITEXT NOT NULL,
-    message TEXT NOT NULL,
-    votes   INT DEFAULT 0 NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL
+create table "user"
+(
+    "id"       serial,
+    "nickname" citext not null primary key,
+    "email"    citext not null unique,
+    "fullname" text   not null,
+    "about"    text   not null default ''
 );
 
 
-CREATE TABLE IF NOT EXISTS posts(
-    id SERIAL PRIMARY KEY UNIQUE,
-    parent INT NOT NULL,
-    path TEXT NOT NULL DEFAULT '',
-    author CITEXT NOT NULL,
-    forum CITEXT NOT NULL,
-    thread INT NOT NULL,
-    message TEXT NOT NULL,
-    is_edited BOOL DEFAULT FALSE,
-    created_at TIMESTAMPTZ NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS votes(
-    id SERIAL PRIMARY KEY UNIQUE,
-    thread_id INT NOT NULL,
-    author TEXT NOT NULL,
-    value INT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS forum_users(
-    id SERIAL PRIMARY KEY UNIQUE,
-    author CITEXT NOT NULL,
-    forum CITEXT NOT NULL
+create table "forum"
+(
+    "id"      serial,
+    "slug"    citext        not null primary key,
+    "title"   text          not null,
+    "user"    citext        not null,
+    "posts"   int default 0 not null,
+    "threads" int default 0 not null
 );
 
 
-CREATE INDEX IF NOT EXISTS forum_users_index ON forum_users (author, forum);
-
-CREATE INDEX IF NOT EXISTS thread_slug_index ON thread (slug);
-CREATE INDEX IF NOT EXISTS thread_created_at_index ON thread (created_at, forum);
-CREATE INDEX IF NOT EXISTS thread_forum_author_index ON thread (forum, author);
-
-CREATE INDEX IF NOT EXISTS post_thread_index ON posts (thread);
-CREATE INDEX IF NOT EXISTS post_substring_index ON posts (substring(path,1,7));
-create index IF NOT EXISTS post_forum_index on posts (forum, author);
-
-CREATE INDEX IF NOT EXISTS votes_index ON votes (thread_id, author);
-
-create unique index IF NOT EXISTS forum_users_index on forum_users (author, forum);
-
+create table "thread"
+(
+    "id"      serial primary key,
+    "slug"    citext        not null,
+    "title"   text          not null,
+    "author"  text          not null,
+    "forum"   text          not null,
+    "message" text          not null,
+    "votes"   int default 0 not null,
+    "created" timestamptz   not null
+);
+create index on "thread" ("slug");
+create index on "thread" ("created", "forum");
+create index on "thread" ("forum", "author");
 
 create function inc_forum_thread() returns trigger as
 $$
@@ -84,35 +50,55 @@ create trigger thread_insert
     for each row
 execute procedure inc_forum_thread();
 
-create function inc_forum_posts() returns trigger as
-$$
-begin
-    update forum set posts = posts + 1 where slug=NEW.forum;
-    return NEW;
-end;
-$$ language plpgsql;
 
-create trigger thread_insert
-    after insert
-    on posts
-    for each row
-execute procedure inc_forum_posts();
+create table "post"
+(
+    "id"       serial primary key,
+    "parent"   int         not null,
+    "path"     text        not null default '',
+    "author"   text        not null,
+    "forum"    text        not null,
+    "thread"   int         not null,
+    "message"  text        not null,
+    "isEdited" bool        not null default false,
+    "created"  timestamptz not null
+);
+create index on "post" ("thread");
+create index on "post" (substring("path",1,7));
+create index on "post" ("forum", "author");
+
+
+create table "vote"
+(
+    "id"       serial primary key,
+    "thread"   int  not null,
+    "nickname" text not null,
+    "voice"    int  not null
+);
+create index on "vote" ("thread", "nickname");
+
+
+create table "forum_user"
+(
+    "forum" text not null,
+    "user"  text not null
+);
+create unique index on "forum_user" ("user", "forum");
 
 
 create function add_forum_user() returns trigger as
 $$
 begin
-    insert into forum_users (forum, author) values (NEW.forum, NEW.author) on conflict do nothing;
+    insert into forum_user (forum, "user") values (NEW.forum, NEW.author) on conflict do nothing;
     return NEW;
 end;
 $$ language plpgsql;
 
 create trigger forum_user
     after insert
-    on posts
+    on post
     for each row
 execute procedure add_forum_user();
-
 create trigger forum_user
     after insert
     on thread
