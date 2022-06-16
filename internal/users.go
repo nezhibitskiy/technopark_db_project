@@ -1,7 +1,7 @@
 package internal
 
 import (
-	"context"
+	"encoding/json"
 	"github.com/labstack/echo/v4"
 	"net/http"
 )
@@ -9,7 +9,7 @@ import (
 func (s *Service) searchUsersByNickname(nickname string) (*User, error) {
 	user := User{}
 
-	err := s.db.QueryRow(context.Background(), "SELECT nickname, fullname, about, email FROM users "+
+	err := s.db.QueryRow("SELECT nickname, fullname, about, email FROM users "+
 		"WHERE nickname = $1", &nickname).Scan(&user.Nickname, &user.Fullname, &user.About,
 		&user.Email)
 	if err != nil {
@@ -22,7 +22,7 @@ func (s *Service) searchUsersByNickname(nickname string) (*User, error) {
 func (s *Service) searchUsersByEmail(email string) ([]User, error) {
 	users := make([]User, 0, 2)
 
-	rows, err := s.db.Query(context.Background(), "SELECT nickname, fullname, about, email FROM users "+
+	rows, err := s.db.Query("SELECT nickname, fullname, about, email FROM users "+
 		"WHERE email = $1", &email)
 	if err != nil {
 		return nil, err
@@ -45,7 +45,7 @@ func (s *Service) searchUsersByEmail(email string) ([]User, error) {
 func (s *Service) searchUsersByEmailOrNickname(nickname, email string) ([]User, error) {
 	users := make([]User, 0, 2)
 
-	rows, err := s.db.Query(context.Background(), "SELECT nickname, fullname, about, email FROM users "+
+	rows, err := s.db.Query("SELECT nickname, fullname, about, email FROM users "+
 		"WHERE nickname = $1 OR email = $2", &nickname, &email)
 	if err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func (s *Service) searchUsersByEmailOrNickname(nickname, email string) ([]User, 
 
 func (s *Service) getUserByNickname(nickname string) (User, error) {
 	userData := User{}
-	err := s.db.QueryRow(context.Background(), "SELECT nickname, fullname, about, email FROM users "+
+	err := s.db.QueryRow("SELECT nickname, fullname, about, email FROM users "+
 		"WHERE nickname = $1", &nickname).Scan(&userData.Nickname, &userData.Fullname, &userData.About,
 		&userData.Email)
 	return userData, err
@@ -76,7 +76,7 @@ func (s *Service) UserCreate() echo.HandlerFunc {
 	return func(ctx echo.Context) error {
 		nickname := ctx.Param("nickname")
 		userData := User{}
-		err := ctx.Bind(&userData)
+		err := json.NewDecoder(ctx.Request().Body).Decode(&userData)
 		if err != nil {
 			return ctx.NoContent(http.StatusBadRequest)
 		}
@@ -86,7 +86,7 @@ func (s *Service) UserCreate() echo.HandlerFunc {
 			return ctx.JSON(http.StatusConflict, oldUsers)
 		}
 
-		_, err = s.db.Exec(context.Background(), "INSERT INTO users(about, email, fullname, nickname) "+
+		_, err = s.db.Exec("INSERT INTO users(about, email, fullname, nickname) "+
 			"VALUES($1, $2, $3, $4);", &userData.About, &userData.Email,
 			&userData.Fullname, &nickname)
 		if err != nil {
@@ -113,7 +113,7 @@ func (s *Service) UpdateUser() echo.HandlerFunc {
 	return func(ctx echo.Context) error {
 		nickname := ctx.Param("nickname")
 		userData := User{}
-		err := ctx.Bind(&userData)
+		err := json.NewDecoder(ctx.Request().Body).Decode(&userData)
 		if err != nil {
 			return ctx.NoContent(http.StatusBadRequest)
 		}
@@ -137,7 +137,7 @@ func (s *Service) UpdateUser() echo.HandlerFunc {
 		}
 
 		if userData.Fullname != "" {
-			_, err = s.db.Exec(context.Background(), "UPDATE users SET fullname = $1 "+
+			_, err = s.db.Exec("UPDATE users SET fullname = $1 "+
 				"WHERE nickname = $2", &userData.Fullname, &nickname)
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)
@@ -145,7 +145,7 @@ func (s *Service) UpdateUser() echo.HandlerFunc {
 			user.Fullname = userData.Fullname
 		}
 		if userData.About != "" {
-			_, err = s.db.Exec(context.Background(), "UPDATE users SET about = $1 "+
+			_, err = s.db.Exec("UPDATE users SET about = $1 "+
 				"WHERE nickname = $2", &userData.About, &nickname)
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)
@@ -153,7 +153,7 @@ func (s *Service) UpdateUser() echo.HandlerFunc {
 			user.About = userData.About
 		}
 		if userData.Email != "" {
-			_, err = s.db.Exec(context.Background(), "UPDATE users SET email = $1 "+
+			_, err = s.db.Exec("UPDATE users SET email = $1 "+
 				"WHERE nickname = $2", &userData.Email, &nickname)
 			if err != nil {
 				return ctx.JSON(http.StatusInternalServerError, err)

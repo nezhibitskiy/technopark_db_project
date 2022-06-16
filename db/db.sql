@@ -1,6 +1,7 @@
 CREATE EXTENSION IF NOT EXISTS citext;
 
 CREATE TABLE IF NOT EXISTS users(
+    id SERIAL,
     nickname CITEXT COLLATE "ucs_basic" PRIMARY KEY UNIQUE,
     fullname TEXT NOT NULL,
     about TEXT NOT NULL,
@@ -8,61 +9,109 @@ CREATE TABLE IF NOT EXISTS users(
 );
 
 CREATE TABLE IF NOT EXISTS forum(
+    id      SERIAL,
     slug    CITEXT CONSTRAINT forum_pk PRIMARY KEY UNIQUE,
     title   TEXT,
-    author  CITEXT NOT NULL
---     CONSTRAINT forum_author_fk FOREIGN KEY (author) REFERENCES users(nickname)
+    author  CITEXT NOT NULL,
+    posts   INT DEFAULT 0 NOT NULL,
+    threads INT DEFAULT 0 NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS thread(
-    id SERIAL PRIMARY KEY UNIQUE,
+    id SERIAL PRIMARY KEY,
+    slug CITEXT NOT NULL,
     title TEXT NOT NULL,
     author CITEXT NOT NULL,
     forum CITEXT NOT NULL,
     message TEXT NOT NULL,
     votes   INT DEFAULT 0 NOT NULL,
-    slug CITEXT,
-    created_at TIMESTAMP NOT NULL
---     CONSTRAINT thread_forum_fk FOREIGN KEY (forum) REFERENCES forum(slug),
---     CONSTRAINT thread_user_fk FOREIGN KEY (author) REFERENCES users(nickname)
+    created_at TIMESTAMPTZ NOT NULL
 );
+
+
+CREATE TABLE IF NOT EXISTS posts(
+    id SERIAL PRIMARY KEY UNIQUE,
+    parent INT NOT NULL,
+    path TEXT NOT NULL DEFAULT '',
+    author CITEXT NOT NULL,
+    forum CITEXT NOT NULL,
+    thread_id INT NOT NULL,
+    message TEXT NOT NULL,
+    is_edited BOOL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS votes(
+    id SERIAL PRIMARY KEY UNIQUE,
+    thread_id INT NOT NULL,
+    author TEXT NOT NULL,
+    value INT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS forum_users(
+    id SERIAL PRIMARY KEY UNIQUE,
+    author CITEXT NOT NULL,
+    forum CITEXT NOT NULL
+);
+
+
+CREATE INDEX ON forum_users (author, forum);
 
 CREATE INDEX ON thread (slug);
 CREATE INDEX ON thread (created_at, forum);
 CREATE INDEX ON thread (forum, author);
 
-
-CREATE TABLE IF NOT EXISTS posts(
-    id SERIAL PRIMARY KEY UNIQUE,
-    parent int8 NOT NULL,
-    path TEXT NOT NULL DEFAULT '',
-    author CITEXT NOT NULL,
-    message TEXT NOT NULL,
-    is_edited BOOL DEFAULT FALSE,
-    thread_id INT NOT NULL,
-    created_at timestamp NOT NULL,
-    CONSTRAINT posts_user_fk FOREIGN KEY (author) REFERENCES users(nickname)
---     CONSTRAINT posts_thread_fk FOREIGN KEY (thread_id) REFERENCES thread(id)
---     CONSTRAINT posts_post_fk FOREIGN KEY (parent) REFERENCES posts(id)
-);
-
 CREATE INDEX ON posts (thread_id);
-CREATE INDEX ON posts (substring("path",1,7));
+CREATE INDEX ON posts (substring(path,1,7));
+create index on posts (forum, author);
 
-
-CREATE TABLE IF NOT EXISTS votes(
-    id SERIAL PRIMARY KEY UNIQUE,
-    thread_id INT NOT NULL,
-    author CITEXT NOT NULL,
-    value INT NOT NULL
-);
 CREATE INDEX ON votes (thread_id, author);
 
+create function inc_forum_thread() returns trigger as
+$$
+begin
+    update forum set threads = threads + 1 where slug=NEW.forum;
+    return NEW;
+end;
+$$ language plpgsql;
 
-CREATE TABLE IF NOT EXISTS forum_users(
-    id SERIAL8 PRIMARY KEY UNIQUE,
-    author CITEXT NOT NULL,
-    forum CITEXT NOT NULL
---     CONSTRAINT forum_users_forum_fk FOREIGN KEY (forum) REFERENCES forum(slug),
---     CONSTRAINT forum_users_users_fk FOREIGN KEY (author) REFERENCES users(nickname)
-);
+create trigger thread_insert
+    after insert
+    on thread
+    for each row
+execute procedure inc_forum_thread();
+
+create function inc_forum_posts() returns trigger as
+$$
+begin
+    update forum set posts = posts + 1 where slug=NEW.forum;
+    return NEW;
+end;
+$$ language plpgsql;
+
+create trigger thread_insert
+    after insert
+    on posts
+    for each row
+execute procedure inc_forum_posts();
+
+
+create function add_forum_user() returns trigger as
+$$
+begin
+    insert into forum_users (forum, author) values (NEW.forum, NEW.author) on conflict do nothing;
+    return NEW;
+end;
+$$ language plpgsql;
+
+create trigger forum_user
+    after insert
+    on posts
+    for each row
+execute procedure add_forum_user();
+
+create trigger forum_user
+    after insert
+    on thread
+    for each row
+execute procedure add_forum_user();

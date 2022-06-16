@@ -1,20 +1,19 @@
 package internal
 
 import (
-	"context"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo/v4"
 	"net/http"
 	"project/generator"
 )
 
 type Service struct {
-	db              *pgxpool.Pool
+	db              *sqlx.DB
 	postIDGenerator *generator.Generator
 	userCache       *UserCache
 }
 
-func RegisterService(s *echo.Echo, dbPool *pgxpool.Pool) *Service {
+func RegisterService(s *echo.Echo, dbPool *sqlx.DB) *Service {
 	service := Service{db: dbPool}
 	service.registerRoutes(s)
 	postIDGen := generator.NewGenerator()
@@ -46,32 +45,32 @@ func (s *Service) registerRoutes(router *echo.Echo) {
 
 func (s *Service) Clear() echo.HandlerFunc {
 	return func(ctx echo.Context) error {
-		_, err := s.db.Exec(context.Background(), "DELETE FROM votes;")
+		_, err := s.db.Exec("DELETE FROM votes;")
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 		}
 
-		_, err = s.db.Exec(context.Background(), "DELETE FROM posts;")
+		_, err = s.db.Exec("DELETE FROM posts;")
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 		}
 
-		_, err = s.db.Exec(context.Background(), "DELETE FROM thread;")
+		_, err = s.db.Exec("DELETE FROM thread;")
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 		}
 
-		_, err = s.db.Exec(context.Background(), "DELETE FROM forum_users;")
+		_, err = s.db.Exec("DELETE FROM forum_users;")
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 		}
 
-		_, err = s.db.Exec(context.Background(), "DELETE FROM forum;")
+		_, err = s.db.Exec("DELETE FROM forum;")
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 		}
 
-		_, err = s.db.Exec(context.Background(), "DELETE FROM users;")
+		_, err = s.db.Exec("DELETE FROM users;")
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 		}
@@ -82,38 +81,36 @@ func (s *Service) Clear() echo.HandlerFunc {
 
 func (s *Service) GetStatus() echo.HandlerFunc {
 	return func(ctx echo.Context) error {
-		conn, err := s.db.Acquire(context.Background())
-		defer conn.Release()
 
 		var data Status
 
-		tx, err := conn.Begin(context.Background())
+		tx, err := s.db.Begin()
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 		}
-		defer tx.Rollback(context.Background())
+		defer tx.Rollback()
 
-		err = tx.QueryRow(context.Background(), "SELECT count(*) FROM users;").Scan(&data.User)
-		if err != nil {
-			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
-		}
-
-		err = tx.QueryRow(context.Background(), "SELECT count(*) FROM forum;").Scan(&data.Forum)
+		err = tx.QueryRow("SELECT count(*) FROM users;").Scan(&data.User)
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 		}
 
-		err = tx.QueryRow(context.Background(), "SELECT count(*) FROM thread;").Scan(&data.Thread)
+		err = tx.QueryRow("SELECT count(*) FROM forum;").Scan(&data.Forum)
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 		}
 
-		err = tx.QueryRow(context.Background(), "SELECT count(*) FROM posts;").Scan(&data.Post)
+		err = tx.QueryRow("SELECT count(*) FROM thread;").Scan(&data.Thread)
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 		}
 
-		err = tx.Commit(context.Background())
+		err = tx.QueryRow("SELECT count(*) FROM posts;").Scan(&data.Post)
+		if err != nil {
+			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
+		}
+
+		err = tx.Commit()
 		if err != nil {
 			return ctx.JSON(http.StatusInternalServerError, ResponseError{Message: err.Error()})
 		}

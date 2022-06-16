@@ -1,9 +1,9 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"github.com/jackc/pgx/v4/pgxpool"
+	_ "github.com/jackc/pgx/v4/stdlib"
+	"github.com/jmoiron/sqlx"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"log"
@@ -11,7 +11,7 @@ import (
 	"project/internal"
 )
 
-func ConnectDB() (*pgxpool.Pool, error) {
+func ConnectDB() (*sqlx.DB, error) {
 	if err := godotenv.Load(".env"); err != nil {
 		return nil, err
 	}
@@ -20,13 +20,17 @@ func ConnectDB() (*pgxpool.Pool, error) {
 		os.Getenv("DBHOST"), os.Getenv("DBPORT"), os.Getenv("DBUSER"),
 		os.Getenv("DBPASSWORD"), os.Getenv("DBNAME"))
 
-	dbPool, err := pgxpool.Connect(context.Background(), psqlInfo)
-
+	db, err := sqlx.Open("pgx", psqlInfo)
 	if err != nil {
 		return nil, err
 	}
-
-	return dbPool, nil
+	db.SetMaxOpenConns(8)
+	db.SetMaxIdleConns(8)
+	err = db.Ping()
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
 }
 
 func main() {
