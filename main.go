@@ -8,8 +8,8 @@ import (
 	"github.com/valyala/fasthttp"
 	"log"
 	"os"
-	"project/pkg/api"
-	"project/pkg/api/repository"
+	"project/internal"
+	"project/internal/repository"
 )
 
 const PORT = "5000"
@@ -21,8 +21,8 @@ func main() {
 	}
 
 	repo := repository.NewRepository(db)
-	usecase := api.NewUsecase(repo)
-	handler := api.NewHandler(usecase)
+	usecase := internal.NewUsecase(&repo)
+	handler := internal.NewHandler(usecase)
 
 	fmt.Println("listening port " + PORT)
 	log.Fatal(fasthttp.ListenAndServe(":"+PORT, handler.GetHandleFunc()))

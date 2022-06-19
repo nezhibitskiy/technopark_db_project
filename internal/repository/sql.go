@@ -2,7 +2,7 @@ package repository
 
 import (
 	"database/sql"
-	"project/pkg/consts"
+	"project/internal/consts"
 )
 
 func Error(err error) error {

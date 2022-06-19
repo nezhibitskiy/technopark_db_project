@@ -1,19 +1,18 @@
-package api
+package internal
 
 import (
 	"fmt"
-	apiModel "project/pkg/api/model"
-	"project/pkg/api/repository"
-	"project/pkg/consts"
-	"project/pkg/model"
+	"project/internal/consts"
+	"project/internal/model"
+	"project/internal/repository"
 	"time"
 )
 
 type Usecase struct {
-	repo repository.Repository
+	repo *repository.Repository
 }
 
-func NewUsecase(repo repository.Repository) Usecase {
+func NewUsecase(repo *repository.Repository) Usecase {
 	return Usecase{repo: repo}
 }
 
@@ -70,7 +69,7 @@ func (u *Usecase) createForum(title, slug, nickname string) (*model.Forum, error
 	return u.repo.CreateForum(title, slug, userNick)
 }
 
-func (u *Usecase) createThread(forumSlug string, thread apiModel.ThreadCreate) (*model.Thread, error) {
+func (u *Usecase) createThread(forumSlug string, thread model.ThreadCreate) (*model.Thread, error) {
 	if _, err := u.repo.GetUserNickname(thread.Author); err != nil {
 		return nil, err
 	}
@@ -100,7 +99,7 @@ func (u *Usecase) updateThread(threadSlugOrID string, message, title string) (*m
 	return u.repo.UpdateThread(threadSlugOrID, message, title)
 }
 
-func (u *Usecase) createPosts(threadSlugOrID string, posts []*apiModel.PostCreate) (model.Posts, error) {
+func (u *Usecase) createPosts(threadSlugOrID string, posts []*model.PostCreate) (model.Posts, error) {
 	thread, err := u.repo.GetThreadFieldsBySlugOrID("id, forum", threadSlugOrID)
 	if err != nil {
 		return nil, err
@@ -111,7 +110,7 @@ func (u *Usecase) createPosts(threadSlugOrID string, posts []*apiModel.PostCreat
 	return u.repo.CreatePosts(posts, thread)
 }
 
-func (u *Usecase) checkPostsCreate(posts []*apiModel.PostCreate, threadID int) error {
+func (u *Usecase) checkPostsCreate(posts []*model.PostCreate, threadID int) error {
 	for _, post := range posts {
 		if err := u.checkPostCreate(post, threadID); err != nil {
 			return err
@@ -120,7 +119,7 @@ func (u *Usecase) checkPostsCreate(posts []*apiModel.PostCreate, threadID int) e
 	return nil
 }
 
-func (u *Usecase) checkPostCreate(post *apiModel.PostCreate, threadID int) error {
+func (u *Usecase) checkPostCreate(post *model.PostCreate, threadID int) error {
 	if _, err := u.repo.GetUserNickname(post.Author); err != nil {
 		return err
 	}
@@ -164,7 +163,7 @@ func (u *Usecase) getForumUsers(forum, since string, limit int, desc bool) (mode
 	return u.repo.GetForumUsers(forum, since, limit, desc)
 }
 
-func (u *Usecase) voteForThread(threadSlugOrID string, vote apiModel.Vote) (*model.Thread, error) {
+func (u *Usecase) voteForThread(threadSlugOrID string, vote model.VoteDB) (*model.Thread, error) {
 	thread, err := u.repo.GetThreadBySlugOrID(threadSlugOrID)
 	if err != nil {
 		return nil, err
@@ -223,7 +222,7 @@ func (u *Usecase) updatePost(id int, message string) (*model.Post, error) {
 	return u.repo.UpdatePostMessage(id, message)
 }
 
-func (u *Usecase) getStatus() (s apiModel.Status, err error) {
+func (u *Usecase) getStatus() (s model.Status, err error) {
 	forum, err := u.repo.CountForums()
 	if err != nil {
 		return
@@ -240,7 +239,7 @@ func (u *Usecase) getStatus() (s apiModel.Status, err error) {
 	if err != nil {
 		return
 	}
-	s = apiModel.Status{
+	s = model.Status{
 		Forum:  forum,
 		Post:   post,
 		Thread: thread,

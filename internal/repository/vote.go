@@ -2,7 +2,7 @@ package repository
 
 import (
 	"database/sql"
-	"project/pkg/model"
+	"project/internal/model"
 )
 
 func (r *Repository) AddThreadVote(thread *model.Thread, nickname string, voice int) (newVotes int, err error) {

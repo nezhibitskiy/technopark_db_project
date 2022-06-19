@@ -2,8 +2,7 @@ package repository
 
 import (
 	"fmt"
-	"project/pkg/model"
-	"project/pkg/repository"
+	"project/internal/model"
 	"strings"
 )
 
@@ -23,7 +22,7 @@ func (r *Repository) getForum(fields, filter string, params ...interface{}) (*mo
 	forum := model.Forum{}
 	err := r.db.Get(&forum, `select `+fields+` from forum where `+filter, params...)
 	if err != nil {
-		return nil, repository.Error(err)
+		return nil, Error(err)
 	}
 	var includePosts = fields == "*" || strings.Contains(fields, "posts")
 	if forum.Posts != 0 || !includePosts {

@@ -3,9 +3,7 @@ package repository
 import (
 	"fmt"
 	"github.com/jmoiron/sqlx"
-	apiModel "project/pkg/api/model"
-	"project/pkg/model"
-	"project/pkg/repository"
+	"project/internal/model"
 	"strconv"
 	"strings"
 	"time"
@@ -37,7 +35,7 @@ func (r *Repository) getPostFields(fields, filter string, params ...interface{})
 	p := model.Post{}
 	err := r.db.Get(&p, "select "+fields+" from post where "+filter, params...)
 	if err != nil {
-		return nil, repository.Error(err)
+		return nil, Error(err)
 	}
 	return &p, nil
 }
@@ -63,7 +61,7 @@ func (r *Repository) getPosts(orderBy []string, limit int, filter string, params
 	return posts, err
 }
 
-func (r *Repository) CreatePosts(posts []*apiModel.PostCreate, thread *model.Thread) (model.Posts, error) {
+func (r *Repository) CreatePosts(posts []*model.PostCreate, thread *model.Thread) (model.Posts, error) {
 	forum, err := r.GetForumSlug(thread.Forum)
 	if err != nil {
 		return nil, err
@@ -84,8 +82,8 @@ func (r *Repository) CreatePosts(posts []*apiModel.PostCreate, thread *model.Thr
 	return result, nil
 }
 
-func (r *Repository) chunkPosts(posts []*apiModel.PostCreate) [][]*apiModel.PostCreate {
-	chunked := make([][]*apiModel.PostCreate, 0)
+func (r *Repository) chunkPosts(posts []*model.PostCreate) [][]*model.PostCreate {
+	chunked := make([][]*model.PostCreate, 0)
 	for i := 0; i < len(posts); i += postChunkSize {
 		end := i + postChunkSize
 		if end > len(posts) {
@@ -96,7 +94,7 @@ func (r *Repository) chunkPosts(posts []*apiModel.PostCreate) [][]*apiModel.Post
 	return chunked
 }
 
-func (r *Repository) createPostsChunk(forum *model.Forum, thread *model.Thread, posts []*apiModel.PostCreate, created time.Time) ([]int, error) {
+func (r *Repository) createPostsChunk(forum *model.Forum, thread *model.Thread, posts []*model.PostCreate, created time.Time) ([]int, error) {
 	columns := 8
 	placeholders := make([]string, 0, len(posts))
 	args := make([]interface{}, 0, len(posts)*columns)

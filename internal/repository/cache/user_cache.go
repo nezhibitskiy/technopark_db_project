@@ -1,7 +1,7 @@
 package cache
 
 import (
-	"project/pkg/consts"
+	"project/internal/consts"
 	"strings"
 	"sync"
 )

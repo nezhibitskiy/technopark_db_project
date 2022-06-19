@@ -2,9 +2,7 @@ package repository
 
 import (
 	"fmt"
-	model2 "project/pkg/api/model"
-	"project/pkg/model"
-	"project/pkg/repository"
+	"project/internal/model"
 	"strconv"
 )
 
@@ -56,12 +54,12 @@ func (r *Repository) getThread(fields, filter string, params ...interface{}) (*m
 	t := model.Thread{}
 	err := r.db.Get(&t, "select "+fields+" from thread where "+filter, params...)
 	if err != nil {
-		return nil, repository.Error(err)
+		return nil, Error(err)
 	}
 	return &t, nil
 }
 
-func (r *Repository) CreateThread(forum *model.Forum, thread model2.ThreadCreate) (*model.Thread, error) {
+func (r *Repository) CreateThread(forum *model.Forum, thread model.ThreadCreate) (*model.Thread, error) {
 	var id int
 	err := r.db.
 		QueryRow(

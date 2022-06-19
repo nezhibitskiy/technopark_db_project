@@ -5,7 +5,7 @@ import (
 	"errors"
 	"github.com/valyala/fasthttp"
 	"net/http"
-	"project/pkg/consts"
+	"project/internal/consts"
 )
 
 func PathParam(c *fasthttp.RequestCtx, param string) string {

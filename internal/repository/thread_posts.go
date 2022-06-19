@@ -2,8 +2,8 @@ package repository
 
 import (
 	"fmt"
-	"project/pkg/consts"
-	"project/pkg/model"
+	"project/internal/consts"
+	"project/internal/model"
 	"strings"
 )
 

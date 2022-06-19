@@ -3,16 +3,15 @@ package repository
 import (
 	"database/sql"
 	"fmt"
-	"project/pkg/consts"
-	"project/pkg/model"
-	"project/pkg/repository"
+	"project/internal/consts"
+	"project/internal/model"
 )
 
 func (r *Repository) GetUserByNickname(nickname string) (*model.User, error) {
 	user := model.User{}
 	err := r.db.Get(&user, `select * from "user" where nickname = $1`, nickname)
 	if err != nil {
-		return nil, repository.Error(err)
+		return nil, Error(err)
 	}
 	return &user, nil
 }
@@ -25,7 +24,7 @@ func (r *Repository) GetUserNickname(nickname string) (string, error) {
 	user := model.User{}
 	err = r.db.Get(&user, `select id,nickname from "user" where nickname = $1`, nickname)
 	if err != nil {
-		return "", repository.Error(err)
+		return "", Error(err)
 	}
 	r.users.Add(user.ID, user.Nickname)
 	return user.Nickname, nil
@@ -44,7 +43,7 @@ func (r *Repository) getUserByEmail(email string) (*model.User, error) {
 	user := model.User{}
 	err := r.db.Get(&user, `select * from "user" where email = $1`, email)
 	if err != nil {
-		return nil, repository.Error(err)
+		return nil, Error(err)
 	}
 	return &user, nil
 }
@@ -56,7 +55,7 @@ func (r *Repository) GetUsersByNicknameOrEmail(nickname, email string) ([]*model
 		nickname, email,
 	)
 	if err != nil {
-		return nil, repository.Error(err)
+		return nil, Error(err)
 	}
 	return users, nil
 }
@@ -87,7 +86,7 @@ func (r *Repository) UpdateUserByNickname(nickname, email, fullname, about strin
 		email, fullname, about, nickname,
 	)
 	if err != nil {
-		return repository.Error(err)
+		return Error(err)
 	}
 	if affected, _ := result.RowsAffected(); affected == 0 {
 		return consts.ErrNotFound

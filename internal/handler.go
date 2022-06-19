@@ -1,13 +1,13 @@
-package api
+package internal
 
 import (
 	"encoding/json"
 	"errors"
 	"github.com/buaazp/fasthttprouter"
 	"github.com/valyala/fasthttp"
-	apiModel "project/pkg/api/model"
-	"project/pkg/consts"
-	"project/pkg/deliv"
+	"project/internal/consts"
+	"project/internal/deliv"
+	"project/internal/model"
 	"strconv"
 	"strings"
 )
@@ -58,7 +58,7 @@ func (h *Handler) GetHandleFunc() fasthttp.RequestHandler {
 }
 
 func (h *Handler) handleUserCreate(c *fasthttp.RequestCtx) {
-	u := apiModel.UserInput{}
+	u := model.UserInput{}
 	if err := json.Unmarshal(c.PostBody(), &u); err != nil {
 		deliv.BadRequest(c, err)
 		return
@@ -85,7 +85,7 @@ func (h *Handler) handleGetUserProfile(c *fasthttp.RequestCtx) {
 }
 
 func (h *Handler) handleUserUpdate(c *fasthttp.RequestCtx) {
-	u := apiModel.UserInput{}
+	u := model.UserInput{}
 	if err := json.Unmarshal(c.PostBody(), &u); err != nil {
 		deliv.BadRequest(c, err)
 		return
@@ -104,7 +104,7 @@ func (h *Handler) handleUserUpdate(c *fasthttp.RequestCtx) {
 }
 
 func (h *Handler) handleForumCreate(c *fasthttp.RequestCtx) {
-	forumToCreate := apiModel.ForumCreate{}
+	forumToCreate := model.ForumCreate{}
 	if err := json.Unmarshal(c.PostBody(), &forumToCreate); err != nil {
 		deliv.BadRequest(c, err)
 		return
@@ -122,7 +122,7 @@ func (h *Handler) handleForumCreate(c *fasthttp.RequestCtx) {
 }
 
 func (h *Handler) handleThreadCreate(c *fasthttp.RequestCtx) {
-	thread := apiModel.ThreadCreate{}
+	thread := model.ThreadCreate{}
 	if err := json.Unmarshal(c.PostBody(), &thread); err != nil {
 		deliv.BadRequest(c, err)
 		return
@@ -173,7 +173,7 @@ func (h *Handler) handleGetForumUsers(c *fasthttp.RequestCtx) {
 }
 
 func (h *Handler) handlePostCreate(c *fasthttp.RequestCtx) {
-	var posts []*apiModel.PostCreate
+	var posts []*model.PostCreate
 	if err := json.Unmarshal(c.PostBody(), &posts); err != nil {
 		deliv.BadRequest(c, err)
 		return
@@ -187,7 +187,7 @@ func (h *Handler) handlePostCreate(c *fasthttp.RequestCtx) {
 }
 
 func (h *Handler) handleVoteForThread(c *fasthttp.RequestCtx) {
-	var vote apiModel.Vote
+	var vote model.VoteDB
 	if err := json.Unmarshal(c.PostBody(), &vote); err != nil {
 		deliv.BadRequest(c, err)
 		return
@@ -210,7 +210,7 @@ func (h *Handler) handleGetThreadDetails(c *fasthttp.RequestCtx) {
 }
 
 func (h *Handler) handleThreadUpdate(c *fasthttp.RequestCtx) {
-	t := apiModel.ThreadUpdate{}
+	t := model.ThreadUpdate{}
 	if err := json.Unmarshal(c.PostBody(), &t); err != nil {
 		deliv.BadRequest(c, err)
 		return
@@ -271,7 +271,7 @@ func (h *Handler) handleGetPostDetails(c *fasthttp.RequestCtx) {
 }
 
 func (h *Handler) handlePostUpdate(c *fasthttp.RequestCtx) {
-	t := apiModel.PostUpdate{}
+	t := model.PostUpdate{}
 	if err := json.Unmarshal(c.PostBody(), &t); err != nil {
 		deliv.BadRequest(c, err)
 		return
