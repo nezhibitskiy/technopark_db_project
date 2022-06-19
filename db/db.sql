@@ -80,7 +80,6 @@ create index index_posts_thread_id on "post" ("thread", "id");
 create index index_posts_thread_parent_path on "post" ("thread", "parent", "path");
 create index on "post" (substring("path",1,7));
 
-
 create table "vote"
 (
     "id"       serial primary key,
