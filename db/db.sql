@@ -9,6 +9,10 @@ create table "user"
     "about"    text   not null default ''
 );
 
+create index index_users_nickname_hash ON "user" USING HASH ("nickname");
+create index index_users_email_hash ON "user" USING HASH ("email");
+create index index_users_id ON "user" USING HASH ("id");
+
 
 create table "forum"
 (
@@ -20,6 +24,10 @@ create table "forum"
     "threads" int default 0 not null
 );
 
+create index index_forums ON "forum" ("slug", "title", "user", "posts", "threads");
+create index index_forums_slug_hash ON "forum" USING HASH ("slug");
+create index index_forums_users_foreign ON "forum" USING HASH ("user");
+create index index_forums_id_hash ON "forum" USING HASH ("id");
 
 create table "thread"
 (
@@ -32,9 +40,12 @@ create table "thread"
     "votes"   int default 0 not null,
     "created" timestamptz   not null
 );
-create index on "thread" ("slug");
-create index on "thread" ("created", "forum");
-create index on "thread" ("forum", "author");
+
+create index index_threads_forum_created ON "thread" ("forum", "id");
+create index index_threads_forum_ID ON "thread" ("forum", "created");
+create index index_threads_created ON "thread" ("created");
+create index index_threads_slug_hash ON "thread" USING HASH ("slug");
+create index index_threads_id_hash ON "thread" USING HASH ("id");
 
 create function inc_forum_thread() returns trigger as
 $$
