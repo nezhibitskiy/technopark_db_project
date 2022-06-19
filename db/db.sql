@@ -79,6 +79,7 @@ create index index_posts_id on "post" USING HASH ("id");
 create index index_posts_thread_id on "post" ("thread", "id");
 create index index_posts_thread_parent_path on "post" ("thread", "parent", "path");
 create index on "post" (substring("path",1,7));
+create index on "post" ((path[1]), path);
 
 create table "vote"
 (
@@ -88,7 +89,7 @@ create table "vote"
     "voice"    int  not null
 );
 create index on "vote" ("thread", "nickname");
-
+create index on "vote" ("nickname", "thread", "voice");
 
 create table "forum_user"
 (
