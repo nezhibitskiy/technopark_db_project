@@ -1,4 +1,4 @@
-package sequence
+package generator
 
 import "sync/atomic"
 

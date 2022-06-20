@@ -10,14 +10,14 @@ import (
 type Repository struct {
 	db               *sqlx.DB
 	users            cache.UserCache
-	postsIDGenerator sequence.Generator
+	postsIDGenerator generator.Generator
 }
 
 func NewRepository(db *sqlx.DB) Repository {
 	return Repository{
 		db:               db,
 		users:            cache.NewUserCache(),
-		postsIDGenerator: sequence.NewGenerator(),
+		postsIDGenerator: generator.NewGenerator(),
 	}
 }
 
