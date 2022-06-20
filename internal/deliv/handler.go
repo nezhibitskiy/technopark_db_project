@@ -1,74 +1,64 @@
 package deliv
 
 import (
-	"encoding/json"
 	"errors"
-	"github.com/valyala/fasthttp"
+	"github.com/labstack/echo/v4"
 	"net/http"
 	"project/internal/consts"
 )
 
-func PathParam(c *fasthttp.RequestCtx, param string) string {
-	return c.UserValue(param).(string)
+func PathParam(c echo.Context, param string) string {
+	return c.Get(param).(string)
 }
 
-func QueryParam(c *fasthttp.RequestCtx, param string) string {
+func QueryParam(c echo.Context, param string) string {
 	return string(c.FormValue(param))
 }
 
-func Ok(c *fasthttp.RequestCtx, body interface{}) {
-	sendJSON(c, http.StatusOK, body)
+func Ok(c echo.Context, body interface{}) error {
+	return c.JSON(http.StatusOK, body)
 }
 
-func Created(c *fasthttp.RequestCtx, body interface{}) {
-	sendJSON(c, http.StatusCreated, body)
+func Created(c echo.Context, body interface{}) error {
+	return c.JSON(http.StatusCreated, body)
 }
 
-func BadRequest(c *fasthttp.RequestCtx, err error) {
-	sendMessage(c, http.StatusBadRequest, err)
+func BadRequest(c echo.Context, err error) error {
+	return sendMessage(c, http.StatusBadRequest, err)
 }
 
-func Error(c *fasthttp.RequestCtx, err error) {
+func Error(c echo.Context, err error) error {
 	if errors.Is(err, consts.ErrNotFound) {
-		notFound(c, err)
-		return
+		return notFound(c, err)
 	}
 	if errors.Is(err, consts.ErrConflict) {
-		ConflictWithMessage(c, err)
-		return
+		return ConflictWithMessage(c, err)
 	}
 	if err != nil {
-		internalError(c, err)
-		return
+		return internalError(c, err)
+
 	}
-	Ok(c, "")
+	return Ok(c, "")
 }
 
-func notFound(c *fasthttp.RequestCtx, err error) {
-	sendMessage(c, http.StatusNotFound, err)
+func notFound(c echo.Context, err error) error {
+	return sendMessage(c, http.StatusNotFound, err)
 }
 
-func internalError(c *fasthttp.RequestCtx, err error) {
-	sendMessage(c, http.StatusInternalServerError, err)
+func internalError(c echo.Context, err error) error {
+	return sendMessage(c, http.StatusInternalServerError, err)
 }
 
-func Conflict(c *fasthttp.RequestCtx, body interface{}) {
-	sendJSON(c, http.StatusConflict, body)
+func Conflict(c echo.Context, body interface{}) error {
+	return c.JSON(http.StatusConflict, body)
 }
 
-func ConflictWithMessage(c *fasthttp.RequestCtx, err error) {
-	sendMessage(c, http.StatusConflict, err)
+func ConflictWithMessage(c echo.Context, err error) error {
+	return sendMessage(c, http.StatusConflict, err)
 }
 
-func sendJSON(c *fasthttp.RequestCtx, status int, body interface{}) {
-	c.SetStatusCode(status)
-	c.SetContentType("application/json")
-	response, _ := json.Marshal(body)
-	c.Write(response)
-}
-
-func sendMessage(c *fasthttp.RequestCtx, status int, err error) {
-	sendJSON(c, status, map[string]string{
+func sendMessage(c echo.Context, status int, err error) error {
+	return c.JSON(status, map[string]string{
 		"message": err.Error(),
 	})
 }

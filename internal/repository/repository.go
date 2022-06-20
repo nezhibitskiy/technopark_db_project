@@ -3,8 +3,8 @@ package repository
 import (
 	"fmt"
 	"github.com/jmoiron/sqlx"
-	"project/internal/repository/cache"
-	"project/internal/repository/sequence"
+	"project/internal/cache"
+	"project/internal/generator"
 )
 
 type Repository struct {

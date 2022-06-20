@@ -5,7 +5,7 @@ import (
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/jmoiron/sqlx"
 	"github.com/joho/godotenv"
-	"github.com/valyala/fasthttp"
+	"github.com/labstack/echo/v4"
 	"log"
 	"os"
 	"project/internal"
@@ -15,6 +15,9 @@ import (
 const PORT = "5000"
 
 func main() {
+
+	echoServer := echo.New()
+
 	db, err := NewDB()
 	if err != nil {
 		log.Fatal(err)
@@ -22,10 +25,11 @@ func main() {
 
 	repo := repository.NewRepository(db)
 	usecase := internal.NewUsecase(&repo)
-	handler := internal.NewHandler(usecase)
+	internal.NewHandler(usecase, echoServer)
 
 	fmt.Println("listening port " + PORT)
-	log.Fatal(fasthttp.ListenAndServe(":"+PORT, handler.GetHandleFunc()))
+
+	echoServer.Logger.Fatal(echoServer.Start(":" + PORT))
 }
 
 func NewDB() (*sqlx.DB, error) {
