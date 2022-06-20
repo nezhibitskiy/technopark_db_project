@@ -8,7 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"project/internal/consts"
-	"project/internal/deliv"
+	"project/internal/handlers"
 	"project/internal/model"
 	"strconv"
 	"strings"
@@ -52,28 +52,29 @@ func (h *Handler) handleUserCreate() echo.HandlerFunc {
 			return c.NoContent(http.StatusBadRequest)
 		}
 		if err := json.Unmarshal(requestData, &u); err != nil {
-			return deliv.BadRequest(c, err)
+			return handlers.BadRequest(c, err)
 		}
-		users, err := h.usecase.createUser(deliv.PathParam(c, "nickname"), u.Email, u.Fullname, u.About)
+
+		users, err := h.usecase.createUser(handlers.PathParam(c, "nickname"), u.Email, u.Fullname, u.About)
 		if errors.Is(err, consts.ErrConflict) {
-			return deliv.Conflict(c, users)
+			return handlers.Conflict(c, users)
 		}
 		if err != nil {
-			return deliv.Error(c, err)
+			return handlers.Error(c, err)
 
 		}
-		return deliv.Created(c, users[0])
+		return handlers.Created(c, users[0])
 	}
 }
 
 func (h *Handler) handleGetUserProfile() echo.HandlerFunc {
 	return func(c echo.Context) error {
-		u, err := h.usecase.getUserByNickname(deliv.PathParam(c, "nickname"))
+		u, err := h.usecase.getUserByNickname(handlers.PathParam(c, "nickname"))
 		if err != nil {
-			return deliv.Error(c, err)
+			return handlers.Error(c, err)
 
 		}
-		return deliv.Ok(c, u)
+		return handlers.Ok(c, u)
 	}
 }
 
@@ -82,21 +83,21 @@ func (h *Handler) handleUserUpdate() echo.HandlerFunc {
 		u := model.UserInput{}
 		body, err := ioutil.ReadAll(c.Request().Body)
 		if err != nil {
-			return deliv.Error(c, err)
+			return handlers.Error(c, err)
 		}
 		if err := json.Unmarshal(body, &u); err != nil {
-			return deliv.BadRequest(c, err)
+			return handlers.BadRequest(c, err)
 		}
-		nick := deliv.PathParam(c, "nickname")
+		nick := handlers.PathParam(c, "nickname")
 		user, err := h.usecase.updateUser(nick, u.Email, u.Fullname, u.About)
 		if errors.Is(err, consts.ErrConflict) {
-			return deliv.ConflictWithMessage(c, err)
+			return handlers.ConflictWithMessage(c, err)
 
 		}
 		if err != nil {
-			return deliv.Error(c, err)
+			return handlers.Error(c, err)
 		}
-		return deliv.Ok(c, user)
+		return handlers.Ok(c, user)
 	}
 }
 
@@ -105,17 +106,17 @@ func (h *Handler) handleForumCreate() echo.HandlerFunc {
 		forumToCreate := model.ForumCreate{}
 		body, err := ioutil.ReadAll(c.Request().Body)
 		if err := json.Unmarshal(body, &forumToCreate); err != nil {
-			return deliv.BadRequest(c, err)
+			return handlers.BadRequest(c, err)
 		}
 		forum, err := h.usecase.createForum(forumToCreate.Title, forumToCreate.Slug, forumToCreate.User)
 		if errors.Is(err, consts.ErrConflict) {
-			return deliv.Conflict(c, forum)
+			return handlers.Conflict(c, forum)
 
 		}
 		if err != nil {
-			return deliv.Error(c, err)
+			return handlers.Error(c, err)
 		}
-		return deliv.Created(c, forum)
+		return handlers.Created(c, forum)
 	}
 }
 
@@ -125,54 +126,54 @@ func (h *Handler) handleThreadCreate() echo.HandlerFunc {
 		thread := model.ThreadCreate{}
 		body, err := ioutil.ReadAll(c.Request().Body)
 		if err := json.Unmarshal(body, &thread); err != nil {
-			return deliv.BadRequest(c, err)
+			return handlers.BadRequest(c, err)
 		}
-		forum := deliv.PathParam(c, "slug")
+		forum := handlers.PathParam(c, "slug")
 		result, err := h.usecase.createThread(forum, thread)
 		if errors.Is(err, consts.ErrConflict) {
-			return deliv.Conflict(c, result)
+			return handlers.Conflict(c, result)
 
 		}
 		if err != nil {
-			return deliv.Error(c, err)
+			return handlers.Error(c, err)
 
 		}
-		return deliv.Created(c, result)
+		return handlers.Created(c, result)
 	}
 }
 
 func (h *Handler) handleGetForumDetails() echo.HandlerFunc {
 	return func(c echo.Context) error {
-		slug := deliv.PathParam(c, "slug")
+		slug := handlers.PathParam(c, "slug")
 		forum, err := h.usecase.getForum(slug)
 		if err != nil {
-			return deliv.Error(c, err)
+			return handlers.Error(c, err)
 		}
-		return deliv.Ok(c, forum)
+		return handlers.Ok(c, forum)
 	}
 }
 
 func (h *Handler) handleGetForumThreads() echo.HandlerFunc {
 	return func(c echo.Context) error {
-		limit, _ := strconv.Atoi(deliv.QueryParam(c, "limit"))
-		desc, _ := strconv.ParseBool(deliv.QueryParam(c, "desc"))
-		threads, err := h.usecase.getForumThreads(deliv.PathParam(c, "slug"), deliv.QueryParam(c, "since"), limit, desc)
+		limit, _ := strconv.Atoi(handlers.QueryParam(c, "limit"))
+		desc, _ := strconv.ParseBool(handlers.QueryParam(c, "desc"))
+		threads, err := h.usecase.getForumThreads(handlers.PathParam(c, "slug"), handlers.QueryParam(c, "since"), limit, desc)
 		if err != nil {
-			return deliv.Error(c, err)
+			return handlers.Error(c, err)
 		}
-		return deliv.Ok(c, threads)
+		return handlers.Ok(c, threads)
 	}
 }
 
 func (h *Handler) handleGetForumUsers() echo.HandlerFunc {
 	return func(c echo.Context) error {
-		limit, _ := strconv.Atoi(deliv.QueryParam(c, "limit"))
-		desc, _ := strconv.ParseBool(deliv.QueryParam(c, "desc"))
-		users, err := h.usecase.getForumUsers(deliv.PathParam(c, "slug"), deliv.QueryParam(c, "since"), limit, desc)
+		limit, _ := strconv.Atoi(handlers.QueryParam(c, "limit"))
+		desc, _ := strconv.ParseBool(handlers.QueryParam(c, "desc"))
+		users, err := h.usecase.getForumUsers(handlers.PathParam(c, "slug"), handlers.QueryParam(c, "since"), limit, desc)
 		if err != nil {
-			return deliv.Error(c, err)
+			return handlers.Error(c, err)
 		}
-		return deliv.Ok(c, users)
+		return handlers.Ok(c, users)
 	}
 }
 
@@ -182,13 +183,13 @@ func (h *Handler) handlePostCreate() echo.HandlerFunc {
 		var posts []*model.PostCreate
 		body, err := ioutil.ReadAll(c.Request().Body)
 		if err := json.Unmarshal(body, &posts); err != nil {
-			return deliv.BadRequest(c, err)
+			return handlers.BadRequest(c, err)
 		}
-		result, err := h.usecase.createPosts(deliv.PathParam(c, "slug_or_id"), posts)
+		result, err := h.usecase.createPosts(handlers.PathParam(c, "slug_or_id"), posts)
 		if err != nil {
-			return deliv.Error(c, err)
+			return handlers.Error(c, err)
 		}
-		return deliv.Created(c, result)
+		return handlers.Created(c, result)
 	}
 }
 
@@ -198,23 +199,23 @@ func (h *Handler) handleVoteForThread() echo.HandlerFunc {
 		var vote model.VoteDB
 		body, err := ioutil.ReadAll(c.Request().Body)
 		if err := json.Unmarshal(body, &vote); err != nil {
-			return deliv.BadRequest(c, err)
+			return handlers.BadRequest(c, err)
 		}
-		thread, err := h.usecase.voteForThread(deliv.PathParam(c, "slug_or_id"), vote)
+		thread, err := h.usecase.voteForThread(handlers.PathParam(c, "slug_or_id"), vote)
 		if err != nil {
-			return deliv.Error(c, err)
+			return handlers.Error(c, err)
 		}
-		return deliv.Ok(c, thread)
+		return handlers.Ok(c, thread)
 	}
 }
 
 func (h *Handler) handleGetThreadDetails() echo.HandlerFunc {
 	return func(c echo.Context) error {
-		thread, err := h.usecase.getThread(deliv.PathParam(c, "slug_or_id"))
+		thread, err := h.usecase.getThread(handlers.PathParam(c, "slug_or_id"))
 		if err != nil {
-			return deliv.Error(c, err)
+			return handlers.Error(c, err)
 		}
-		return deliv.Ok(c, thread)
+		return handlers.Ok(c, thread)
 	}
 }
 
@@ -223,47 +224,47 @@ func (h *Handler) handleThreadUpdate() echo.HandlerFunc {
 		t := model.ThreadUpdate{}
 		body, err := ioutil.ReadAll(c.Request().Body)
 		if err := json.Unmarshal(body, &t); err != nil {
-			return deliv.BadRequest(c, err)
+			return handlers.BadRequest(c, err)
 		}
-		thread, err := h.usecase.updateThread(deliv.PathParam(c, "slug_or_id"), t.Message, t.Title)
+		thread, err := h.usecase.updateThread(handlers.PathParam(c, "slug_or_id"), t.Message, t.Title)
 		if err != nil {
-			return deliv.Error(c, err)
+			return handlers.Error(c, err)
 		}
-		return deliv.Ok(c, thread)
+		return handlers.Ok(c, thread)
 	}
 }
 
 func (h *Handler) handleGetThreadPosts() echo.HandlerFunc {
 	return func(c echo.Context) error {
-		sp := deliv.QueryParam(c, "since")
+		sp := handlers.QueryParam(c, "since")
 		var since *int = nil
 		if sp != "" {
 			n, _ := strconv.Atoi(sp)
 			since = &n
 		}
-		limit, _ := strconv.Atoi(deliv.QueryParam(c, "limit"))
-		desc, _ := strconv.ParseBool(deliv.QueryParam(c, "desc"))
+		limit, _ := strconv.Atoi(handlers.QueryParam(c, "limit"))
+		desc, _ := strconv.ParseBool(handlers.QueryParam(c, "desc"))
 		posts, err := h.usecase.getThreadPosts(
-			deliv.PathParam(c, "slug_or_id"),
+			handlers.PathParam(c, "slug_or_id"),
 			limit,
 			since,
-			deliv.QueryParam(c, "sort"),
+			handlers.QueryParam(c, "sort"),
 			desc,
 		)
 		if err != nil {
-			return deliv.Error(c, err)
+			return handlers.Error(c, err)
 		}
-		return deliv.Ok(c, posts)
+		return handlers.Ok(c, posts)
 	}
 }
 
 func (h *Handler) handleGetPostDetails() echo.HandlerFunc {
 	return func(c echo.Context) error {
-		id, _ := strconv.Atoi(deliv.PathParam(c, "id"))
-		related := strings.Split(deliv.QueryParam(c, "related"), ",")
+		id, _ := strconv.Atoi(handlers.PathParam(c, "id"))
+		related := strings.Split(handlers.QueryParam(c, "related"), ",")
 		details, err := h.usecase.getPostDetails(id, related)
 		if err != nil {
-			return deliv.Error(c, err)
+			return handlers.Error(c, err)
 		}
 		result := map[string]interface{}{
 			"post": details.Post,
@@ -278,7 +279,7 @@ func (h *Handler) handleGetPostDetails() echo.HandlerFunc {
 				result["thread"] = details.Thread
 			}
 		}
-		return deliv.Ok(c, result)
+		return handlers.Ok(c, result)
 	}
 }
 
@@ -287,14 +288,14 @@ func (h *Handler) handlePostUpdate() echo.HandlerFunc {
 		t := model.PostUpdate{}
 		body, err := ioutil.ReadAll(c.Request().Body)
 		if err := json.Unmarshal(body, &t); err != nil {
-			return deliv.BadRequest(c, err)
+			return handlers.BadRequest(c, err)
 		}
-		id, _ := strconv.Atoi(deliv.PathParam(c, "id"))
+		id, _ := strconv.Atoi(handlers.PathParam(c, "id"))
 		thread, err := h.usecase.updatePost(id, t.Message)
 		if err != nil {
-			return deliv.Error(c, err)
+			return handlers.Error(c, err)
 		}
-		return deliv.Ok(c, thread)
+		return handlers.Ok(c, thread)
 	}
 }
 
@@ -302,9 +303,9 @@ func (h *Handler) handleStatus() echo.HandlerFunc {
 	return func(c echo.Context) error {
 		status, err := h.usecase.getStatus()
 		if err != nil {
-			return deliv.Error(c, err)
+			return handlers.Error(c, err)
 		}
-		return deliv.Ok(c, status)
+		return handlers.Ok(c, status)
 	}
 }
 
@@ -312,8 +313,8 @@ func (h *Handler) handleClear() echo.HandlerFunc {
 	return func(c echo.Context) error {
 		err := h.usecase.clear()
 		if err != nil {
-			return deliv.Error(c, err)
+			return handlers.Error(c, err)
 		}
-		return deliv.Ok(c, nil)
+		return handlers.Ok(c, nil)
 	}
 }

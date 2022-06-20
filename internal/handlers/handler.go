@@ -1,4 +1,4 @@
-package deliv
+package handlers
 
 import (
 	"errors"
@@ -8,7 +8,7 @@ import (
 )
 
 func PathParam(c echo.Context, param string) string {
-	return c.Get(param).(string)
+	return c.Param(param)
 }
 
 func QueryParam(c echo.Context, param string) string {
