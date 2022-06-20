@@ -4,8 +4,8 @@ EXPOSE 5432
 EXPOSE 5000
 
 ENV DEBIAN_FRONTEND 'noninteractive'
-ENV PGVER 12
-RUN apt -y update && apt install -y postgresql-$PGVER
+ENV PGVER 14
+RUN apt -y update && apt install -y postgresql-contrib
 RUN apt install -y wget
 RUN apt install -y git
 
