@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"project/internal/consts"
-	"project/internal/handlers"
 	"project/internal/model"
 	"strconv"
 	"strings"
@@ -52,29 +51,31 @@ func (h *Handler) handleUserCreate() echo.HandlerFunc {
 			return c.NoContent(http.StatusBadRequest)
 		}
 		if err := json.Unmarshal(requestData, &u); err != nil {
-			return handlers.BadRequest(c, err)
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"message": err.Error(),
+			})
 		}
 
-		users, err := h.usecase.createUser(handlers.PathParam(c, "nickname"), u.Email, u.Fullname, u.About)
+		users, err := h.usecase.createUser(c.Param("nickname"), u.Email, u.Fullname, u.About)
 		if errors.Is(err, consts.ErrConflict) {
-			return handlers.Conflict(c, users)
+			return c.JSON(http.StatusConflict, &users)
 		}
 		if err != nil {
-			return handlers.Error(c, err)
+			return Error(c, err)
 
 		}
-		return handlers.Created(c, users[0])
+		return c.JSON(http.StatusCreated, users[0])
 	}
 }
 
 func (h *Handler) handleGetUserProfile() echo.HandlerFunc {
 	return func(c echo.Context) error {
-		u, err := h.usecase.getUserByNickname(handlers.PathParam(c, "nickname"))
+		u, err := h.usecase.getUserByNickname(c.Param("nickname"))
 		if err != nil {
-			return handlers.Error(c, err)
+			return Error(c, err)
 
 		}
-		return handlers.Ok(c, u)
+		return c.JSON(http.StatusOK, u)
 	}
 }
 
@@ -83,21 +84,24 @@ func (h *Handler) handleUserUpdate() echo.HandlerFunc {
 		u := model.UserInput{}
 		body, err := ioutil.ReadAll(c.Request().Body)
 		if err != nil {
-			return handlers.Error(c, err)
+			return Error(c, err)
 		}
 		if err := json.Unmarshal(body, &u); err != nil {
-			return handlers.BadRequest(c, err)
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"message": err.Error(),
+			})
 		}
-		nick := handlers.PathParam(c, "nickname")
+		nick := c.Param("nickname")
 		user, err := h.usecase.updateUser(nick, u.Email, u.Fullname, u.About)
 		if errors.Is(err, consts.ErrConflict) {
-			return handlers.ConflictWithMessage(c, err)
-
+			return c.JSON(http.StatusConflict, map[string]string{
+				"message": err.Error(),
+			})
 		}
 		if err != nil {
-			return handlers.Error(c, err)
+			return Error(c, err)
 		}
-		return handlers.Ok(c, user)
+		return c.JSON(http.StatusOK, user)
 	}
 }
 
@@ -106,17 +110,19 @@ func (h *Handler) handleForumCreate() echo.HandlerFunc {
 		forumToCreate := model.ForumCreate{}
 		body, err := ioutil.ReadAll(c.Request().Body)
 		if err := json.Unmarshal(body, &forumToCreate); err != nil {
-			return handlers.BadRequest(c, err)
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"message": err.Error(),
+			})
 		}
 		forum, err := h.usecase.createForum(forumToCreate.Title, forumToCreate.Slug, forumToCreate.User)
 		if errors.Is(err, consts.ErrConflict) {
-			return handlers.Conflict(c, forum)
+			return c.JSON(http.StatusConflict, &forum)
 
 		}
 		if err != nil {
-			return handlers.Error(c, err)
+			return Error(c, err)
 		}
-		return handlers.Created(c, forum)
+		return c.JSON(http.StatusCreated, forum)
 	}
 }
 
@@ -126,54 +132,56 @@ func (h *Handler) handleThreadCreate() echo.HandlerFunc {
 		thread := model.ThreadCreate{}
 		body, err := ioutil.ReadAll(c.Request().Body)
 		if err := json.Unmarshal(body, &thread); err != nil {
-			return handlers.BadRequest(c, err)
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"message": err.Error(),
+			})
 		}
-		forum := handlers.PathParam(c, "slug")
+		forum := c.Param("slug")
 		result, err := h.usecase.createThread(forum, thread)
 		if errors.Is(err, consts.ErrConflict) {
-			return handlers.Conflict(c, result)
+			return c.JSON(http.StatusConflict, &result)
 
 		}
 		if err != nil {
-			return handlers.Error(c, err)
+			return Error(c, err)
 
 		}
-		return handlers.Created(c, result)
+		return c.JSON(http.StatusCreated, result)
 	}
 }
 
 func (h *Handler) handleGetForumDetails() echo.HandlerFunc {
 	return func(c echo.Context) error {
-		slug := handlers.PathParam(c, "slug")
+		slug := c.Param("slug")
 		forum, err := h.usecase.getForum(slug)
 		if err != nil {
-			return handlers.Error(c, err)
+			return Error(c, err)
 		}
-		return handlers.Ok(c, forum)
+		return c.JSON(http.StatusOK, forum)
 	}
 }
 
 func (h *Handler) handleGetForumThreads() echo.HandlerFunc {
 	return func(c echo.Context) error {
-		limit, _ := strconv.Atoi(handlers.QueryParam(c, "limit"))
-		desc, _ := strconv.ParseBool(handlers.QueryParam(c, "desc"))
-		threads, err := h.usecase.getForumThreads(handlers.PathParam(c, "slug"), handlers.QueryParam(c, "since"), limit, desc)
+		limit, _ := strconv.Atoi(c.QueryParam("limit"))
+		desc, _ := strconv.ParseBool(c.QueryParam("desc"))
+		threads, err := h.usecase.getForumThreads(c.Param("slug"), c.QueryParam("since"), limit, desc)
 		if err != nil {
-			return handlers.Error(c, err)
+			return Error(c, err)
 		}
-		return handlers.Ok(c, threads)
+		return c.JSON(http.StatusOK, threads)
 	}
 }
 
 func (h *Handler) handleGetForumUsers() echo.HandlerFunc {
 	return func(c echo.Context) error {
-		limit, _ := strconv.Atoi(handlers.QueryParam(c, "limit"))
-		desc, _ := strconv.ParseBool(handlers.QueryParam(c, "desc"))
-		users, err := h.usecase.getForumUsers(handlers.PathParam(c, "slug"), handlers.QueryParam(c, "since"), limit, desc)
+		limit, _ := strconv.Atoi(c.QueryParam("limit"))
+		desc, _ := strconv.ParseBool(c.QueryParam("desc"))
+		users, err := h.usecase.getForumUsers(c.Param("slug"), c.QueryParam("since"), limit, desc)
 		if err != nil {
-			return handlers.Error(c, err)
+			return Error(c, err)
 		}
-		return handlers.Ok(c, users)
+		return c.JSON(http.StatusOK, users)
 	}
 }
 
@@ -183,13 +191,15 @@ func (h *Handler) handlePostCreate() echo.HandlerFunc {
 		var posts []*model.PostCreate
 		body, err := ioutil.ReadAll(c.Request().Body)
 		if err := json.Unmarshal(body, &posts); err != nil {
-			return handlers.BadRequest(c, err)
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"message": err.Error(),
+			})
 		}
-		result, err := h.usecase.createPosts(handlers.PathParam(c, "slug_or_id"), posts)
+		result, err := h.usecase.createPosts(c.Param("slug_or_id"), posts)
 		if err != nil {
-			return handlers.Error(c, err)
+			return Error(c, err)
 		}
-		return handlers.Created(c, result)
+		return c.JSON(http.StatusCreated, result)
 	}
 }
 
@@ -199,23 +209,25 @@ func (h *Handler) handleVoteForThread() echo.HandlerFunc {
 		var vote model.VoteDB
 		body, err := ioutil.ReadAll(c.Request().Body)
 		if err := json.Unmarshal(body, &vote); err != nil {
-			return handlers.BadRequest(c, err)
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"message": err.Error(),
+			})
 		}
-		thread, err := h.usecase.voteForThread(handlers.PathParam(c, "slug_or_id"), vote)
+		thread, err := h.usecase.voteForThread(c.Param("slug_or_id"), vote)
 		if err != nil {
-			return handlers.Error(c, err)
+			return Error(c, err)
 		}
-		return handlers.Ok(c, thread)
+		return c.JSON(http.StatusOK, thread)
 	}
 }
 
 func (h *Handler) handleGetThreadDetails() echo.HandlerFunc {
 	return func(c echo.Context) error {
-		thread, err := h.usecase.getThread(handlers.PathParam(c, "slug_or_id"))
+		thread, err := h.usecase.getThread(c.Param("slug_or_id"))
 		if err != nil {
-			return handlers.Error(c, err)
+			return Error(c, err)
 		}
-		return handlers.Ok(c, thread)
+		return c.JSON(http.StatusOK, thread)
 	}
 }
 
@@ -224,47 +236,49 @@ func (h *Handler) handleThreadUpdate() echo.HandlerFunc {
 		t := model.ThreadUpdate{}
 		body, err := ioutil.ReadAll(c.Request().Body)
 		if err := json.Unmarshal(body, &t); err != nil {
-			return handlers.BadRequest(c, err)
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"message": err.Error(),
+			})
 		}
-		thread, err := h.usecase.updateThread(handlers.PathParam(c, "slug_or_id"), t.Message, t.Title)
+		thread, err := h.usecase.updateThread(c.Param("slug_or_id"), t.Message, t.Title)
 		if err != nil {
-			return handlers.Error(c, err)
+			return Error(c, err)
 		}
-		return handlers.Ok(c, thread)
+		return c.JSON(http.StatusOK, thread)
 	}
 }
 
 func (h *Handler) handleGetThreadPosts() echo.HandlerFunc {
 	return func(c echo.Context) error {
-		sp := handlers.QueryParam(c, "since")
+		sp := c.QueryParam("since")
 		var since *int = nil
 		if sp != "" {
 			n, _ := strconv.Atoi(sp)
 			since = &n
 		}
-		limit, _ := strconv.Atoi(handlers.QueryParam(c, "limit"))
-		desc, _ := strconv.ParseBool(handlers.QueryParam(c, "desc"))
+		limit, _ := strconv.Atoi(c.QueryParam("limit"))
+		desc, _ := strconv.ParseBool(c.QueryParam("desc"))
 		posts, err := h.usecase.getThreadPosts(
-			handlers.PathParam(c, "slug_or_id"),
+			c.Param("slug_or_id"),
 			limit,
 			since,
-			handlers.QueryParam(c, "sort"),
+			c.QueryParam("sort"),
 			desc,
 		)
 		if err != nil {
-			return handlers.Error(c, err)
+			return Error(c, err)
 		}
-		return handlers.Ok(c, posts)
+		return c.JSON(http.StatusOK, posts)
 	}
 }
 
 func (h *Handler) handleGetPostDetails() echo.HandlerFunc {
 	return func(c echo.Context) error {
-		id, _ := strconv.Atoi(handlers.PathParam(c, "id"))
-		related := strings.Split(handlers.QueryParam(c, "related"), ",")
+		id, _ := strconv.Atoi(c.Param("id"))
+		related := strings.Split(c.QueryParam("related"), ",")
 		details, err := h.usecase.getPostDetails(id, related)
 		if err != nil {
-			return handlers.Error(c, err)
+			return Error(c, err)
 		}
 		result := map[string]interface{}{
 			"post": details.Post,
@@ -279,7 +293,7 @@ func (h *Handler) handleGetPostDetails() echo.HandlerFunc {
 				result["thread"] = details.Thread
 			}
 		}
-		return handlers.Ok(c, result)
+		return c.JSON(http.StatusOK, result)
 	}
 }
 
@@ -288,14 +302,16 @@ func (h *Handler) handlePostUpdate() echo.HandlerFunc {
 		t := model.PostUpdate{}
 		body, err := ioutil.ReadAll(c.Request().Body)
 		if err := json.Unmarshal(body, &t); err != nil {
-			return handlers.BadRequest(c, err)
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"message": err.Error(),
+			})
 		}
-		id, _ := strconv.Atoi(handlers.PathParam(c, "id"))
+		id, _ := strconv.Atoi(c.Param("id"))
 		thread, err := h.usecase.updatePost(id, t.Message)
 		if err != nil {
-			return handlers.Error(c, err)
+			return Error(c, err)
 		}
-		return handlers.Ok(c, thread)
+		return c.JSON(http.StatusOK, thread)
 	}
 }
 
@@ -303,9 +319,9 @@ func (h *Handler) handleStatus() echo.HandlerFunc {
 	return func(c echo.Context) error {
 		status, err := h.usecase.getStatus()
 		if err != nil {
-			return handlers.Error(c, err)
+			return Error(c, err)
 		}
-		return handlers.Ok(c, status)
+		return c.JSON(http.StatusOK, status)
 	}
 }
 
@@ -313,8 +329,27 @@ func (h *Handler) handleClear() echo.HandlerFunc {
 	return func(c echo.Context) error {
 		err := h.usecase.clear()
 		if err != nil {
-			return handlers.Error(c, err)
+			return Error(c, err)
 		}
-		return handlers.Ok(c, nil)
+		return c.JSON(http.StatusOK, nil)
 	}
+}
+
+func Error(c echo.Context, err error) error {
+	if errors.Is(err, consts.ErrNotFound) {
+		return c.JSON(http.StatusNotFound, map[string]string{
+			"message": err.Error(),
+		})
+	}
+	if errors.Is(err, consts.ErrConflict) {
+		return c.JSON(http.StatusConflict, map[string]string{
+			"message": err.Error(),
+		})
+	}
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"message": err.Error(),
+		})
+	}
+	return c.NoContent(http.StatusInternalServerError)
 }
