@@ -24,7 +24,7 @@ create table "forum"
     "threads" int default 0 not null
 );
 
-create index index_forums ON "forum" ("slug", "title", "user", "posts", "threads");
+create index index_forums ON "forum" ("slug");
 create index index_forums_slug_hash ON "forum" USING HASH ("slug");
 create index index_forums_users_foreign ON "forum" USING HASH ("user");
 create index index_forums_id_hash ON "forum" USING HASH ("id");
